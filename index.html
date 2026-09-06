@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arnav Bendre — Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #151a21;
+    --ink: #e6e8eb;
+    --muted: #8b949e;
+    --faint: #3d444d;
+    --accent: #7aa2f7;
+    --line: #21262d;
+    --serif: "Fraunces", Georgia, serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  :root:not([data-theme="light"]) { color-scheme: dark; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #fbfaf7; --panel: #ffffff; --ink: #1a1f26; --muted: #5a6472;
+      --faint: #c9cdd4; --accent: #3a5ccc; --line: #e8e6df; color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #fbfaf7; --panel: #ffffff; --ink: #1a1f26; --muted: #5a6472;
+    --faint: #c9cdd4; --accent: #3a5ccc; --line: #e8e6df; color-scheme: light;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--mono); font-size: 15px; line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+
+  /* Hero */
+  header { padding: 15vh 0 12vh; border-bottom: 1px solid var(--line); }
+  .tag { color: var(--accent); font-size: 13px; letter-spacing: .02em; margin-bottom: 22px; }
+  h1 {
+    font-family: var(--serif); font-weight: 500; font-size: clamp(2.6rem, 8vw, 4.4rem);
+    line-height: 1.02; letter-spacing: -.02em; margin-bottom: 26px;
+  }
+  h1 em { font-style: italic; color: var(--muted); }
+  .lede { font-size: 16px; color: var(--muted); max-width: 58ch; line-height: 1.7; }
+  .lede b { color: var(--ink); font-weight: 500; }
+
+  /* Sections */
+  section { padding: 8vh 0; border-bottom: 1px solid var(--line); }
+  .shead {
+    font-size: 12px; color: var(--faint); margin-bottom: 40px;
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  .shead::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  h2 { font-family: var(--serif); font-weight: 500; font-size: 1.05rem; color: var(--ink); }
+
+  /* Entries */
+  .entry { margin-bottom: 46px; }
+  .entry:last-child { margin-bottom: 0; }
+  .entry-top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  .entry h3 { font-family: var(--serif); font-weight: 500; font-size: 1.3rem; line-height: 1.25; letter-spacing: -.01em; }
+  .venue { font-size: 12px; color: var(--accent); white-space: nowrap; }
+  .entry p { color: var(--muted); font-size: 14px; margin-top: 12px; max-width: 64ch; }
+  .metric { color: var(--ink); }
+  .kw { color: var(--faint); font-size: 12px; margin-top: 14px; }
+  .kw span { color: var(--muted); }
+  .plink { display: inline-block; margin-top: 14px; font-size: 13px; color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--faint); padding-bottom: 1px; }
+  .plink:hover { border-color: var(--accent); }
+
+  /* About */
+  .about p { color: var(--muted); max-width: 64ch; margin-bottom: 16px; }
+  .about b { color: var(--ink); font-weight: 500; }
+
+  /* Skills */
+  .skills { display: grid; grid-template-columns: 140px 1fr; gap: 6px 20px; font-size: 13px; }
+  .skills dt { color: var(--faint); }
+  .skills dd { color: var(--muted); }
+
+  /* Contact */
+  footer { padding: 9vh 0; }
+  .links { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 24px; }
+  .links a { color: var(--ink); text-decoration: none; font-size: 14px; border-bottom: 1px solid var(--faint); padding-bottom: 2px; transition: border-color .15s, color .15s; }
+  .links a:hover { color: var(--accent); border-color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .toggle {
+    position: fixed; top: 20px; right: 20px; background: var(--panel);
+    border: 1px solid var(--line); color: var(--muted); border-radius: 6px;
+    width: 34px; height: 34px; cursor: pointer; font-family: var(--mono); font-size: 14px;
+  }
+  .toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+  @media (max-width: 480px) {
+    .skills { grid-template-columns: 1fr; gap: 2px; }
+    .skills dt { margin-top: 12px; }
+  }
+</style>
+</head>
+<body>
+<button class="toggle" id="tg" aria-label="Toggle theme">◐</button>
+
+<div class="wrap">
+  <header>
+    <div class="tag">Arnav Bendre · IIT Roorkee</div>
+    <h1>Making generative models <em>efficient</em> and vision-language models <em>reliable</em>.</h1>
+    <p class="lede">Undergraduate at IIT Roorkee and core member of the <b>Data Science Group</b>. I work on multimodal generative modeling — <b>efficient diffusion distillation</b> and the measurement, mechanisms, and mitigation of <b>hallucination in VLMs</b>. I'm drawn to rigorous, falsifiable questions, with an eye toward results that hold up in practice.</p>
+  </header>
+
+  <section>
+    <div class="shead">Publications</div>
+
+    <div class="entry">
+      <div class="entry-top">
+        <h3>B-DENSE: Branching for Dense Ensemble Network Supervision Efficiency</h3>
+        <span class="venue">ICLR 2026 · DeLTa Workshop</span>
+      </div>
+      <p>Accepted at the ICLR 2026 Workshop on Deep Learning for Theory (DeLTa).</p>
+      <a class="plink" href="https://arxiv.org/pdf/2602.15971">Read paper →</a>
+    </div>
+
+    <div class="entry">
+      <div class="entry-top">
+        <h3>Rethinking CD: A Reproducibility Study on Contrastive Decoding for Object Hallucination in MLLMs</h3>
+        <span class="venue">arXiv preprint · 2026</span>
+      </div>
+      <p>A reproducibility study and extension on the ineffectiveness of contrastive decoding at mitigating object hallucinations in multimodal LLMs.</p>
+      <a class="plink" href="https://arxiv.org/abs/2607.25196">Read paper →</a>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead">Projects</div>
+
+    <div class="entry">
+      <div class="entry-top">
+        <h3>BranchDistillation</h3>
+        <span class="venue">Dec 2025</span>
+      </div>
+      <p>A diffusion-distillation framework that supervises the student on the teacher's full denoising trajectory via K-fold branched output channels (K·C instead of C), recovering intermediate denoising steps that standard distillation discards. Cut FID against Progressive Distillation on CIFAR-10 (<span class="metric">39.66 → 20.81</span> at 128 steps) and against SFD on ImageNet-64 at NFE 2 (<span class="metric">10.25 → 9.57</span>), for a ~0.01% FLOP increase and identical inference cost.</p>
+      <div class="kw">Stack: <span>PyTorch · HuggingFace diffusers · Optuna · Lightning.ai (A100/L4)</span></div>
+      <a class="plink" href="https://github.com/Aurnawr/BranchDistillation_">View code →</a>
+    </div>
+
+    <div class="entry">
+      <div class="entry-top">
+        <h3>Rethinking Contrastive Decoding</h3>
+        <span class="venue">Jul 2026</span>
+      </div>
+      <p>Led a reproducibility study stress-testing contrastive decoding (VCD, ICD, SID) across LLaVA-1.5 (7B/13B) and Qwen2.5-VL on POPE, MME, and CHAIR. Showed CD is statistically indistinguishable from spurious, non-visual controls on precision and hallucination rate, isolating its effect to a single recall shift (<span class="metric">+12.21pp, p&lt;0.001</span>). A logit-lens analysis localized the internal layers where the intervention breaks down — establishing the gains as a distributional artifact, not corrected perception.</p>
+      <div class="kw">Stack: <span>PyTorch · HuggingFace · logit lens</span></div>
+      <a class="plink" href="https://github.com/Aurnawr/Rethinking-CD">View code →</a>
+    </div>
+
+    <div class="entry">
+      <div class="entry-top">
+        <h3>VLM-Reliability: Modality Gaps & Vision Refusal</h3>
+        <span class="venue">Apr 2026</span>
+      </div>
+      <p>Probed the modality gap in LLaVA-1.5-7B by extracting text and image refusal directions from residual-stream activations and comparing them geometrically. Their cosine similarity never exceeds 0.3 while the text-side norm consistently dominates the image side — identifying the modality gap as a primary driver of weak vision-side refusal.</p>
+      <div class="kw">Stack: <span>PyTorch · HuggingFace · mechanistic probing</span></div>
+      <a class="plink" href="https://github.com/Aurnawr/vlm-safety">View code →</a>
+    </div>
+
+    <div class="entry">
+      <div class="entry-top">
+        <h3>Visual-CoT</h3>
+        <span class="venue">May 2026</span>
+      </div>
+      <p>An end-to-end, resumable pipeline turning raw ChartQA samples into a supervised fine-tuning corpus of structured visual chain-of-thought traces (summary → extraction → computation → answer). Sampled 3 traces per item from a frontier VLM teacher, then filtered through five staged gates — schema, answer correctness, numeric grounding, arithmetic re-verification, and 2-of-3 self-consistency — keeping the highest-grounded survivor at <span class="metric">95% yield</span>.</p>
+      <div class="kw">Stack: <span>Python · agentic workflow · VLM API</span></div>
+      <a class="plink" href="https://github.com/Aurnawr/visual-cot">View code →</a>
+    </div>
+  </section>
+
+  <section class="about">
+    <div class="shead">About</div>
+    <p>I'm a B.Tech student in Energy Engineering at <b>IIT Roorkee</b> (2024–2028) and a core member of the student-led <b>Data Science Group</b>, where I research multimodal generative models and vision-language reliability. I've implemented transformers and CNNs from scratch and placed in several Kaggle and ML competitions, with rigorous EDA driving architecture and feature choices.</p>
+    <p>Across my work, one thread recurs: I care <b>why</b> a method works, not just that it does — whether that means recovering the denoising steps distillation throws away, or showing that an apparent hallucination fix is really a distributional artifact.</p>
+  </section>
+
+  <section>
+    <div class="shead">Skills</div>
+    <dl class="skills">
+      <dt>Languages</dt><dd>Python, LaTeX, Shell</dd>
+      <dt>Frameworks</dt><dd>PyTorch, TensorFlow, HuggingFace (Transformers / diffusers / datasets), scikit-learn, OpenCV</dd>
+      <dt>Scientific</dt><dd>pandas, NumPy, Matplotlib</dd>
+    </dl>
+  </section>
+
+  <footer>
+    <div class="shead">Contact</div>
+    <h2>Open to research collaborations and internships.</h2>
+    <div class="links">
+      <a href="mailto:bendrearnav6@gmail.com">bendrearnav6@gmail.com</a>
+      <a href="https://www.linkedin.com/in/arnav-bendre-3b8466323/">LinkedIn</a>
+      <a href="https://github.com/Aurnawr">GitHub</a>
+    </div>
+  </footer>
+</div>
+
+<script>
+  const tg = document.getElementById('tg');
+  tg.addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme');
+    const next = cur === 'light' ? 'dark' : cur === 'dark' ? 'light'
+      : (matchMedia('(prefers-color-scheme: dark)').matches ? 'light' : 'dark');
+    document.documentElement.setAttribute('data-theme', next);
+  });
+</script>
+</body>
+</html>
