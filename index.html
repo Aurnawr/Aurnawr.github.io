@@ -310,7 +310,7 @@
     for (const p of parts){
       ctx.globalAlpha = 0.28 + p.clean*0.62;
       ctx.fillStyle = col;
-      const r = (2.8 + p.clean*3.4)*devicePixelRatio;
+      const r = (3.5 + p.clean*3.4)*devicePixelRatio;
       ctx.beginPath(); ctx.arc(p.x,p.y,r,0,7); ctx.fill();
     }
     ctx.globalAlpha = 1;
