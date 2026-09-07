@@ -153,7 +153,7 @@
     <div class="shead rise"><span class="n">00</span> Currently</div>
     <!-- EDIT ME: a short, personal line about yourself. Keep it to a sentence or two. -->
     <p class="rise" style="color:var(--muted);max-width:60ch;margin-bottom:34px;font-size:15px;line-height:1.7">
-      Hi, I'm Arnav — a curious undergrad who likes taking models apart to see why they work. Outside research I read widely and tinker constantly. <em style="color:var(--faint);font-style:italic">(This line is easy to edit — make it yours.)</em>
+      Hi, I'm Arnav — a curious undergrad who likes taking models apart to see why they work. Outside research I read widely and tinker constantly.
     </p>
     <div class="now-list">
       <!-- EDIT ME: each row below is one update. Change the date label and text freely. -->
@@ -299,7 +299,7 @@
     }
     ctx.globalAlpha = 0.55 + clean*0.35;
     ctx.fillStyle = col;
-    for (const p of parts){ const r = (1.1 + clean*0.9)*devicePixelRatio; ctx.beginPath(); ctx.arc(p.x,p.y,r,0,7); ctx.fill(); }
+    for (const p of parts){ const r = (2.2 + clean*1.6)*devicePixelRatio; ctx.beginPath(); ctx.arc(p.x,p.y,r,0,7); ctx.fill(); }
     ctx.globalAlpha = 1;
     requestAnimationFrame(frame);
   }
