@@ -77,6 +77,12 @@
   .lede { font-size: 16px; color: var(--muted); max-width: 60ch; line-height: 1.75; }
   .lede b { color: var(--ink); font-weight: 500; }
   .scroll-hint { margin-top: 48px; font-size: 12px; color: var(--faint); display:flex; align-items:center; gap:10px; }
+
+  .cta-row { margin-top: 40px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .btn { font-family: var(--mono); font-size: 14px; text-decoration: none; padding: 12px 22px; border-radius: 10px; display: inline-flex; align-items: center; gap: 9px; transition: all .25s; }
+  .btn-primary { color: var(--bg); background: linear-gradient(100deg, var(--accent), var(--accent2)); border: 1px solid transparent; }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 34px -14px var(--glow); filter: brightness(1.05); }
+  .btn svg { width: 15px; height: 15px; }
   .scroll-hint .bar { width: 34px; height: 1px; background: var(--faint); position: relative; overflow: hidden; }
   .scroll-hint .bar::after { content:""; position:absolute; inset:0; width:12px; background:var(--accent); animation: slide 2s ease-in-out infinite; }
   @keyframes slide { 0%{transform:translateX(-14px)} 100%{transform:translateX(36px)} }
@@ -147,6 +153,12 @@
     <div class="tag rise"><span class="dot"></span>Arnav Bendre · IIT Roorkee</div>
     <h1 class="rise">Working at the edge of <em>generative models</em> and <em>visual understanding</em>.</h1>
     <p class="lede rise">Undergraduate at IIT Roorkee and core member of the <b>Data Science Group</b>. I work on multimodal generative modeling — <b>efficient diffusion distillation</b> and the measurement, mechanisms, and mitigation of <b>hallucination in VLMs</b>. I'm drawn to rigorous, falsifiable questions, with an eye toward results that hold up in practice.</p>
+    <div class="cta-row rise">
+      <a class="btn btn-primary" href="arnav-bendre-resume.pdf" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download résumé
+      </a>
+    </div>
     <div class="scroll-hint rise"><span class="bar"></span>scroll to explore</div>
   </header>
 
@@ -242,6 +254,7 @@
       <a href="mailto:bendrearnav6@gmail.com">Email</a>
       <a href="https://www.linkedin.com/in/arnav-bendre-3b8466323/">LinkedIn</a>
       <a href="https://github.com/Aurnawr">GitHub</a>
+      <a href="arnav-bendre-resume.pdf" download>Résumé</a>
     </div>
   </footer>
 </div>
