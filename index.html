@@ -153,7 +153,7 @@
     <div class="shead rise"><span class="n">00</span> Currently</div>
     <!-- EDIT ME: a short, personal line about yourself. Keep it to a sentence or two. -->
     <p class="rise" style="color:var(--muted);max-width:60ch;margin-bottom:34px;font-size:15px;line-height:1.7">
-      Hi, I'm Arnav — a curious undergrad who likes taking models apart to see why they work. Outside research I read widely and tinker constantly.
+      Hi, I'm Arnav — a curious undergrad who likes taking models apart to see why they work. Outside research I consume unhealthy amounts of caffine and media. I also like to travel :)
     </p>
     <div class="now-list">
       <!-- EDIT ME: each row below is one update. Change the date label and text freely. -->
@@ -258,51 +258,66 @@
   const prog = document.getElementById('prog');
   addEventListener('scroll', () => { const h = document.documentElement.scrollHeight - innerHeight; prog.style.width = (scrollY / h * 100) + '%'; }, { passive: true });
 
-  // Denoising-trajectory background: particles start as scattered "noise" and
-  // relax toward a clean structured lattice, then re-noise — a diffusion motif.
+  // Denoising-trajectory background: the field is "noise" by default; wherever the
+  // cursor goes it locally relaxes into a clean structured lattice — a diffusion motif.
   const cv = document.getElementById('field'), ctx = cv.getContext('2d');
   let W, H, parts, T = 0, reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let mx = -9999, my = -9999;          // cursor (device px)
+  const RAD = 320;                      // radius of the "clean" zone around cursor
   function accent(){ return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#b06a3a'; }
   function resize(){ W = cv.width = innerWidth * devicePixelRatio; H = cv.height = innerHeight * devicePixelRatio; }
   function init(){
     resize();
-    const cols = Math.max(6, Math.floor(innerWidth / 130));
-    const rows = Math.max(5, Math.floor(innerHeight / 130));
+    const cols = Math.max(6, Math.floor(innerWidth / 110));
+    const rows = Math.max(5, Math.floor(innerHeight / 110));
     parts = [];
     for (let i=0;i<cols;i++) for (let j=0;j<rows;j++){
-      // target = clean lattice position
-      const tx = (i+0.5)/cols * W, ty = (j+0.5)/rows * H;
-      parts.push({ tx, ty, x: Math.random()*W, y: Math.random()*H, ph: Math.random()*Math.PI*2 });
+      const tx = (i+0.5)/cols * W, ty = (j+0.5)/rows * H;   // clean lattice target
+      parts.push({ tx, ty, x: Math.random()*W, y: Math.random()*H, ph: Math.random()*Math.PI*2, clean: 0 });
     }
   }
   function frame(){
-    T += 0.005;
-    // breathing "denoise level": 0 = pure noise, 1 = fully clean
-    const clean = (Math.sin(T) * 0.5 + 0.5); // oscillates 0..1
+    T += 0.006;
     ctx.clearRect(0,0,W,H);
     const col = accent();
+    const R = RAD * devicePixelRatio;
     for (const p of parts){
-      // noisy offset shrinks as `clean` rises
-      const noiseAmp = (1 - clean) * 90 * devicePixelRatio;
-      const nx = Math.cos(p.ph + T*3) * noiseAmp;
-      const ny = Math.sin(p.ph*1.3 + T*3) * noiseAmp;
-      p.x = p.tx + nx; p.y = p.ty + ny;
+      // how "clean" this point is = proximity to cursor (0 far, 1 at cursor), eased
+      const d = Math.hypot(p.tx - mx, p.ty - my);
+      const target = d < R ? (1 - d/R) : 0;
+      const tgt = target*target*(3-2*target);           // smoothstep
+      p.clean += (tgt - p.clean) * 0.12;                // ease toward target
+      const noiseAmp = (1 - p.clean) * 90 * devicePixelRatio;
+      p.x = p.tx + Math.cos(p.ph + T*3) * noiseAmp;
+      p.y = p.ty + Math.sin(p.ph*1.3 + T*3) * noiseAmp;
     }
-    // draw links only when fairly clean (structure emerging)
-    if (clean > 0.35){
-      ctx.globalAlpha = (clean-0.35)/0.65 * 0.18;
-      ctx.strokeStyle = col; ctx.lineWidth = devicePixelRatio*.6;
-      for (let a=0;a<parts.length;a++) for (let b=a+1;b<parts.length;b++){
-        const dx=parts[a].x-parts[b].x, dy=parts[a].y-parts[b].y, d=Math.hypot(dx,dy);
-        if (d < 150*devicePixelRatio){ ctx.beginPath(); ctx.moveTo(parts[a].x,parts[a].y); ctx.lineTo(parts[b].x,parts[b].y); ctx.stroke(); }
+    // links between neighbouring points that are both fairly clean
+    ctx.strokeStyle = col; ctx.lineWidth = devicePixelRatio*.6;
+    for (let a=0;a<parts.length;a++){
+      const pa = parts[a];
+      if (pa.clean < 0.4) continue;
+      for (let b=a+1;b<parts.length;b++){
+        const pb = parts[b];
+        if (pb.clean < 0.4) continue;
+        const dx=pa.x-pb.x, dy=pa.y-pb.y, dd=Math.hypot(dx,dy);
+        if (dd < 150*devicePixelRatio){
+          ctx.globalAlpha = Math.min(pa.clean, pb.clean) * (1 - dd/(150*devicePixelRatio)) * 0.35;
+          ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
+        }
       }
     }
-    ctx.globalAlpha = 0.55 + clean*0.35;
-    ctx.fillStyle = col;
-    for (const p of parts){ const r = (2.2 + clean*1.6)*devicePixelRatio; ctx.beginPath(); ctx.arc(p.x,p.y,r,0,7); ctx.fill(); }
+    // dots: dim + small when noisy, bright + large when clean
+    for (const p of parts){
+      ctx.globalAlpha = 0.28 + p.clean*0.62;
+      ctx.fillStyle = col;
+      const r = (1.8 + p.clean*2.4)*devicePixelRatio;
+      ctx.beginPath(); ctx.arc(p.x,p.y,r,0,7); ctx.fill();
+    }
     ctx.globalAlpha = 1;
     requestAnimationFrame(frame);
   }
+  addEventListener('pointermove', e => { mx = e.clientX*devicePixelRatio; my = e.clientY*devicePixelRatio; });
+  addEventListener('pointerleave', () => { mx = -9999; my = -9999; });
   addEventListener('resize', init);
   if (!reduce){ init(); frame(); } else { cv.style.display='none'; }
 </script>
