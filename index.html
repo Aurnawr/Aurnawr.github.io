@@ -133,13 +133,37 @@
     .now-item { grid-template-columns: 1fr; gap: 4px; }
     .card { padding: 22px; }
   }
+
+  /* Top nav / tabs */
+  .nav { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 45;
+    display: flex; gap: 4px; background: color-mix(in srgb, var(--panel) 86%, transparent);
+    border: 1px solid var(--line); border-radius: 12px; padding: 5px; backdrop-filter: blur(10px); }
+  .nav a { text-decoration: none; font-size: 13px; color: var(--muted); padding: 7px 16px; border-radius: 8px; transition: color .2s, background .2s; }
+  .nav a:hover { color: var(--ink); }
+  .nav a.active { color: var(--bg); background: linear-gradient(100deg, var(--accent), var(--accent2)); }
+  .service-item { display: flex; align-items: baseline; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .service-item:last-child { border-bottom: none; }
+  .service-role { font-family: var(--serif); font-size: 1.15rem; color: var(--ink); }
+  .service-meta { font-size: 13px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+  .travel-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 40px; }
+  .travel-item { display: flex; align-items: baseline; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .travel-place { color: var(--ink); font-size: 14px; }
+  .travel-date { font-size: 12px; color: var(--accent); margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  @media (max-width: 640px) { .nav { top: 12px; } .nav a { padding: 6px 12px; font-size: 12px; } .travel-list { grid-template-columns: 1fr; } }
+
 </style>
 </head>
 <body>
+
 <div id="prog"></div>
 <canvas id="field"></canvas>
 <div class="bgfade"></div>
 <button class="toggle" id="tg" aria-label="Toggle theme">◑</button>
+
+<nav class="nav">
+  <a href="index.html" class="active">Research</a>
+  <a href="personal.html">Personal</a>
+</nav>
 
 <div class="wrap">
   <header>
@@ -162,29 +186,6 @@
       </div>
     </div>
   </header>
-
-  <section id="now">
-    <div class="shead rise"><span class="n">00</span> Currently</div>
-    <!-- EDIT ME: a short, personal line about yourself. Keep it to a sentence or two. -->
-    <p class="rise" style="color:var(--muted);max-width:60ch;margin-bottom:34px;font-size:15px;line-height:1.7">
-      Hi, I'm Arnav — a curious undergrad who likes taking models apart to see why they work. Outside research I read widely and tinker constantly.
-    </p>
-    <div class="now-list">
-      <!-- EDIT ME: each row below is one update. Change the date label and text freely. -->
-      <div class="now-item rise">
-        <div class="now-date">Now</div>
-        <div class="now-body">Studying the internals of <b>LLM inference</b>.<span>Building toward my larger aim: efficient and reliable vision-language agents and models.</span></div>
-      </div>
-      <div class="now-item rise">
-        <div class="now-date">Next</div>
-        <div class="now-body">Efficient &amp; reliable <b>VLM agents</b>.<span>Where I want to take my research direction.</span></div>
-      </div>
-      <div class="now-item rise">
-        <div class="now-date">Open to</div>
-        <div class="now-body">Research internships &amp; collaborations.</div>
-      </div>
-    </div>
-  </section>
 
   <section id="pubs">
     <div class="shead rise"><span class="n">01</span> Publications</div>
@@ -228,10 +229,13 @@
     </div>
   </section>
 
-  <section id="about" class="about">
-    <div class="shead rise"><span class="n">03</span> About</div>
-    <p class="rise">I'm a B.Tech student in Energy Engineering at <b>IIT Roorkee</b> (2024–2028) and a core member of the student-led <b>Data Science Group</b>, where I research multimodal generative models and vision-language reliability. I've implemented transformers and CNNs from scratch and placed in several Kaggle and ML competitions, with rigorous EDA driving architecture and feature choices.</p>
-    <p class="rise">Across my work, one thread recurs: I care <b>why</b> a method works, not just that it does — whether that means recovering the denoising steps distillation throws away, or showing that an apparent hallucination fix is really a distributional artifact.</p>
+  <section id="service">
+    <div class="shead rise"><span class="n">03</span> Academic Service</div>
+    <!-- EDIT ME: correct the venue/year to exactly match your invitation. -->
+    <div class="service-item rise">
+      <div class="service-role">Reviewer</div>
+      <div class="service-meta">NeurIPS 2026</div>
+    </div>
   </section>
 
   <section id="skills">
@@ -241,27 +245,8 @@
     <div class="rise"><div style="font-size:12px;color:var(--faint);margin-bottom:10px">Scientific</div><div class="chips"><span class="chip">pandas</span><span class="chip">NumPy</span><span class="chip">Matplotlib</span></div></div>
   </section>
 
-  <section id="blog">
-    <div class="shead rise"><span class="n">05</span> Writing</div>
-    <div class="blog-list">
-      <!-- ============================================================
-           TO ADD A NEW POST: copy one <a class="blog-item"> ... </a>
-           block below, paste it at the top of this list, and change
-           the href (your Medium post URL), title, date, and description.
-           ============================================================ -->
-      <a class="blog-item rise" href="https://medium.com/@bendrearnav6/the-problem-of-determinism-e7bc89169ca5" target="_blank" rel="noopener">
-        <div class="blog-top">
-          <div class="blog-title">The problem of determinism</div>
-          <div class="blog-date">Dec 2025</div>
-        </div>
-        <div class="blog-desc">If we lived in a world where an algorithm could predict the result of our every decision.</div>
-      </a>
-    </div>
-    <a class="blog-more rise" href="https://medium.com/@bendrearnav6" target="_blank" rel="noopener">Read everything on Medium <span class="arw">→</span></a>
-  </section>
-
   <footer id="contact">
-    <div class="shead rise"><span class="n">06</span> Contact</div>
+    <div class="shead rise"><span class="n">05</span> Contact</div>
     <h2 class="rise">Open to research collaborations and internships.</h2>
     <div class="links rise">
       <a href="mailto:bendrearnav6@gmail.com">Email</a>
