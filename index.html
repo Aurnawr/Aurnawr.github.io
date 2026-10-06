@@ -254,7 +254,7 @@
     <!-- Newest first. Check the dates against your own records. -->
     <ul class="rows">
       <li class="fade"><span class="d">Sept 2026</span><span><a 
-        href=" https://arxiv.org/abs/2607.25196">Rethinking CD</a> accepted at the NeurIPS 2026 workshop for Grounded and Faithful Vision-Language Models for Real-World Deployment (VLM4RWD).</span></li>
+        href=" https://lnkd.in/eBEjJVXC">Rethinking CD</a> accepted at the NeurIPS 2026 workshop for Grounded and Faithful Vision-Language Models for Real-World Deployment (VLM4RWD).</span></li>
       <li class="fade"><span class="d">Jul 2026</span><span><a href="https://arxiv.org/abs/2607.25196">Rethinking CD</a> is out on arXiv — contrastive decoding doesn't fix object hallucination in MLLMs.</span></li>
       <li class="fade"><span class="d">2026</span><span>Serving as a reviewer for <b>NeurIPS 2026</b>.</span></li>
       <li class="fade"><span class="d">Feb 2026</span><span><a href="https://arxiv.org/pdf/2602.15971">B-DENSE</a> accepted at the <b>ICLR 2026</b> workshop on Deep Learning for Theory (DeLTa).</span></li>
@@ -312,16 +312,18 @@
     <article class="entry fade">
       <div class="thumb"><img src="vlminterp.png" alt=""></div>
       <div>
-        <div class="meta"><span class="tag">Interpretability</span><span class="tag">VLM safety</span><span>Apr 2026</span></div>
-        <h3><a href="https://github.com/Aurnawr/vlm-safety">VLM-Reliability: Modality Gaps &amp; Vision Refusal</a></h3>
-        <p class="tldr">Why do VLMs refuse harmful text but not harmful images? Text- and image-side refusal directions in LLaVA-1.5-7B barely align — cosine similarity never exceeds 0.3 — and the text side consistently dominates in norm.</p>
+        <div class="meta"><span class="tag">Interpretability</span><span class="tag">VLM safety</span><span>Apr – Oct 2026</span></div>
+        <h3><a href="https://github.com/Aurnawr/VLM-Interp">VLM-Interp: How Refusal Is Represented Across Modalities</a></h3>
+        <p class="tldr">Do safety-tuned VLMs share one refusal direction across text and images, or carry a separate, weaker one for images? Adapter-style LLaVA-1.5-7B keeps the two apart; natively multimodal Qwen2.5-VL-7B merges them by two-thirds depth.</p>
+        <p class="result">cos(v_text, v_image): 0.45 LLaVA vs. 0.95 Qwen · noise ceiling ≈ 0.99<br>Ablating v_text in Qwen: harmful-image refusal 0.98 → 0.00</p>
         <div class="links">
-          <a href="https://github.com/Aurnawr/vlm-safety">Code</a>
-          <button class="more-btn" aria-expanded="false" aria-controls="m-vlm">Details</button>
+          <a href="https://github.com/Aurnawr/VLM-Interp">Code</a>
+          <button class="more-btn" aria-expanded="false" aria-controls="m-interp">Details</button>
         </div>
-        <div class="more" id="m-vlm"><div>
-          <p>Refusal directions are extracted from residual-stream activations for each modality and compared geometrically, identifying the modality gap as a primary driver of weak vision-side refusal.</p>
-          <p class="stack">PyTorch · HuggingFace · mechanistic probing</p>
+        <div class="more" id="m-interp"><div>
+          <p>Per-layer refusal directions are class-mean differences of last-token residual states on AdvBench vs. Alpaca, with every prompt also rendered as an image. They are measured against bootstrap CIs, split-half noise ceilings and a random-direction null, then tested causally with Arditi-style cross-modal steering and directional ablation.</p>
+          <p>In LLaVA the image direction is 2–9× weaker and never induces refusal; in Qwen, image refusal runs through the text direction after a sharp layer 13 → 14 transition. On natural images (VLSU), harm reaches the final token as clearly as CLIP sees it (AUROC 0.95) but moves at most 8% (LLaVA) / 16% (Qwen) of the way along v_text: seen, partly aligned, too weak to trigger refusal. Style-matched probe controls rule out length and phrasing, but not word content, so the typographic results may partly reflect OCR.</p>
+          <p class="stack">PyTorch · HuggingFace · linear probes · activation steering</p>
         </div></div>
       </div>
     </article>
