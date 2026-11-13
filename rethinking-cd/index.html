@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rethinking Contrastive Decoding · NeurIPS 2026 VLM4RWD</title>
+<meta name="description" content="Contrastive decoding (VCD, ICD, SID) does not mitigate object hallucination in MLLMs: its correction ignores whether the model is hallucinating, and its benchmark gains come from a constraint that turns sampling into greedy decoding.">
+<meta name="author" content="Arnav Bendre, Guneesh Gupta, Shreyansh Modi, Kavish Grover, Chayan Aggarwal">
+<link rel="canonical" href="https://aurnawr.github.io/rethinking-cd/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Rethinking the Effectiveness of Contrastive Decoding in Mitigating Hallucinations in MLLMs">
+<meta property="og:description" content="NeurIPS 2026 VLM4RWD Workshop. Contrastive decoding's hallucination gains are a change in decoding behaviour, not hallucination mitigation.">
+<meta property="og:url" content="https://aurnawr.github.io/rethinking-cd/">
+<meta property="og:image" content="https://aurnawr.github.io/rethinkingcd.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}],ignoredClasses:['bib','nomath']})"></script>
+<style>
+  :root {
+    --ink: #1f1f1f; --text: #363636; --sub: #5f6368; --faint: #8a8984;
+    --line: #e7e6e1; --tint: #f6f6f4; --band: #f5f5f3;
+    --link: #1d5fbf; --accent: #a14a22; --accent-soft: #f9f0ea;
+    --vcd: #2a78d6; --icd: #eb6834; --sid: #1baf7a;
+    --greedy: #1f1f1f; --sample: #8a8984; --apcs: #6250d6;
+    --hall: #e34948; --real: #52514e;
+    --sans: "Noto Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body { margin: 0; background: #ffffff; color: var(--text); font: 17px/1.65 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+  b, strong { color: var(--ink); font-weight: 600; }
+  code { font-family: var(--mono); font-size: .86em; background: var(--tint); padding: 1px 5px; border-radius: 4px; }
+  .container { max-width: 1000px; margin: 0 auto; padding: 0 20px; }
+  .content { max-width: 820px; margin: 0 auto; }
+  .katex { font-size: 1.04em; }
+  .katex-display { position: relative; overflow-x: auto; overflow-y: hidden; padding: 4px 0; margin: 14px 0; }
+
+  /* top bar */
+  .topbar { border-bottom: 1px solid var(--line); }
+  .topbar .container { display: flex; align-items: center; justify-content: space-between; height: 50px; font-size: 14px; }
+  .topbar a { color: var(--sub); }
+  .topbar a:hover { color: var(--ink); text-decoration: none; }
+  .topbar .gh { display: inline-flex; align-items: center; gap: 6px; }
+  .topbar svg { width: 16px; height: 16px; fill: currentColor; }
+
+  /* hero */
+  .hero { padding: 54px 0 34px; text-align: center; }
+  .venue-tag { display: inline-block; font: 500 12.5px/1.4 var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--accent);
+               background: var(--accent-soft); border-radius: 999px; padding: 4px 12px; margin-bottom: 18px; }
+  h1 { font-size: clamp(1.75rem, 4.4vw, 2.7rem); line-height: 1.2; font-weight: 600; color: var(--ink); margin: 0 auto; max-width: 900px; letter-spacing: -.01em; }
+  .authors { margin: 22px auto 0; font-size: 1.12rem; line-height: 1.8; max-width: 760px; }
+  .authors span { white-space: nowrap; margin: 0 .5em; }
+  .authors .me a { color: var(--link); }
+  .venue { margin-top: 8px; color: var(--sub); font-size: 15.5px; }
+  .btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 24px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; background: #363636; color: #fff; padding: 9px 18px 9px 15px; border-radius: 999px; font-weight: 500; font-size: 15px; transition: background-color .2s; }
+  .btn:hover { background: #111; text-decoration: none; }
+  .btn svg { width: 17px; height: 17px; fill: currentColor; flex: none; }
+
+  /* sections */
+  section { padding: 54px 0; }
+  section.band { background: var(--band); }
+  .eyebrow { text-align: center; font: 500 12.5px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin: 0 0 8px; }
+  h2 { text-align: center; font-size: clamp(1.45rem, 3vw, 1.9rem); line-height: 1.25; font-weight: 600; color: var(--ink); margin: 0 0 22px; }
+  h3 { font-size: 1.16rem; font-weight: 600; color: var(--ink); margin: 36px 0 10px; }
+  p { margin: 0 0 14px; }
+  .abstract p { text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+  .lede { font-size: 1.06rem; color: var(--ink); }
+
+  /* teaser */
+  .teaser { margin: 0 auto; max-width: 980px; }
+  .schem { display: block; width: 100%; height: auto; font-family: var(--sans); }
+  .schem-tall { display: none; max-width: 420px; margin: 0 auto; }
+  @media (max-width: 800px) { .schem-wide { display: none; } .schem-tall { display: block; } }
+  .schem .box { fill: #fff; stroke: #cfcec8; stroke-width: 1.2; }
+  .schem .tint { fill: var(--tint); }
+  .schem .chip { fill: var(--tint); stroke: none; }
+  .schem .ghost { fill: #fff; stroke: #a9a8a2; stroke-width: 1.2; stroke-dasharray: 5 4; }
+  .schem .wire { fill: none; stroke: #8a8984; stroke-width: 1.5; }
+  .schem .wire.dash { stroke-dasharray: 4 3; }
+  .schem .node { fill: var(--ink); }
+  .schem .node-t { fill: #fff; font-size: 14px; font-weight: 600; font-style: italic; text-anchor: middle; }
+  .schem .t-cap { font: 500 10.5px var(--mono); letter-spacing: .08em; fill: var(--faint); }
+  .schem .t-title { font-size: 15px; font-weight: 600; fill: var(--ink); }
+  .schem .t-sub { font-size: 12.5px; fill: var(--sub); }
+  .schem .t-chip { font-size: 11.5px; fill: var(--sub); }
+  .schem .t-chip tspan.m { font-weight: 600; fill: var(--ink); }
+  .schem .t-eq { font-size: 19px; fill: var(--ink); text-anchor: middle; }
+  .schem .t-eq tspan.v { font-style: italic; }
+  .schem .mid { text-anchor: middle; }
+  .schem .badge circle { fill: var(--accent); }
+  .schem .badge text { fill: #fff; font-size: 13px; font-weight: 700; text-anchor: middle; }
+  .teaser figcaption { max-width: 820px; margin: 18px auto 0; font-size: 15px; color: var(--sub); text-align: center; line-height: 1.6; }
+  .tldr { max-width: 820px; margin: 26px auto 0; font-size: 1.08rem; color: var(--ink); text-align: center; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 30px; }
+  @media (max-width: 860px) { .cards { grid-template-columns: 1fr; } }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px 14px; display: flex; flex-direction: column; }
+  .card h3 { font-size: 16.5px; margin: 0 0 8px; display: flex; align-items: center; gap: 10px; line-height: 1.3; }
+  .num { display: inline-grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; }
+  .card p { font-size: 14.5px; line-height: 1.6; margin: 0 0 10px; }
+  .card .more { margin-top: auto; font-size: 14px; }
+
+  /* setup strip */
+  .setup { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 30px 0 6px; }
+  .setup div { padding: 14px 16px; border-left: 1px solid var(--line); font-size: 14.5px; line-height: 1.5; color: var(--ink); }
+  .setup div:first-child { border-left: 0; padding-left: 0; }
+  .setup .k { display: block; font: 500 11px/1.4 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
+  @media (max-width: 760px) {
+    .setup { grid-template-columns: 1fr 1fr; }
+    .setup div { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); }
+    .setup div:nth-child(-n+2) { border-top: 0; }
+  }
+
+  /* figures */
+  .fig { margin: 28px 0; }
+  .figrow { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; margin: 28px 0; }
+  @media (max-width: 720px) { .figrow { grid-template-columns: 1fr; } }
+  figure { margin: 0; }
+  figure a.zoom { display: block; }
+  figure img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+  figure figcaption { font-size: 14.5px; color: var(--sub); margin-top: 10px; line-height: 1.55; }
+  figcaption b { color: var(--ink); }
+
+  /* tables */
+  .tbl { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 22px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .tcap { font-size: 14px; color: var(--sub); margin: 24px 0 8px; line-height: 1.5; }
+  .tcap + .tbl { margin-top: 0; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { font-weight: 600; color: var(--ink); font-size: 13.5px; border-bottom: 1.5px solid #cfcec8; vertical-align: bottom; }
+  thead tr.grp th { border-bottom: 1px solid var(--line); text-align: center; font-weight: 500; color: var(--sub); }
+  table.wrap td, table.wrap th { white-space: normal; vertical-align: top; }
+  table.wrap td:first-child { white-space: nowrap; }
+  tr.hl td { background: #fbf5f1; }
+  td.best { font-weight: 700; color: var(--ink); }
+  td.mute { color: var(--faint); }
+
+  /* callouts */
+  .take { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 6px 6px 0; color: var(--ink); margin: 24px 0; }
+  .checks { margin: 8px 0 0; padding-left: 1.3rem; }
+  .checks li { margin: 6px 0; }
+
+  /* interactive charts */
+  .viz { margin: 28px 0; padding: 18px 18px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+  .viz.wide { width: min(960px, calc(100vw - 40px)); margin-left: 50%; transform: translateX(-50%); }
+  .viz h4 { margin: 0; font-size: 16px; line-height: 1.4; color: var(--ink); font-weight: 600; }
+  .viz .vsub { font-size: 14px; color: var(--sub); margin: 2px 0 12px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 4px 0 14px; }
+  .ctl-label { font-size: 13px; color: var(--sub); margin-right: 6px; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid #d9d8d2; border-radius: 999px; padding: 2px; background: var(--tint); }
+  .seg button { font: 500 13px/1.2 var(--sans); border: 0; background: transparent; color: var(--sub); padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.14); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--sub); margin: 0 0 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend i { display: inline-block; flex: none; }
+  .legend i.ln { width: 16px; height: 2px; border-radius: 1px; }
+  .legend i.dt { width: 10px; height: 10px; border-radius: 50%; }
+  .legend i.br { width: 12px; height: 10px; border-radius: 2px; }
+  .plot { width: 100%; min-height: 40px; }
+  .plot svg { display: block; overflow: visible; }
+  .plot text { font-family: var(--sans); }
+  .plot .tk { font-size: 11px; fill: var(--faint); }
+  .plot .cat { font-size: 12.5px; fill: var(--ink); }
+  .plot .val { font-size: 12px; fill: var(--ink); font-variant-numeric: tabular-nums; }
+  .plot .lab { font-size: 12px; fill: var(--sub); }
+  .plot .grp { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+  .plot .hit { fill: transparent; cursor: default; }
+  .plot .hit:hover, .plot .hit:focus { fill: rgba(0,0,0,.035); }
+  .viz-note { font-size: 14.5px; color: var(--ink); margin: 10px 0 0; min-height: 1.6em; }
+  details.data { margin-top: 10px; font-size: 14px; }
+  details.data summary { cursor: pointer; color: var(--sub); width: fit-content; }
+  details.data .tbl { margin: 0 0 4px; }
+  details.data .tcap { margin-top: 12px; }
+  details.data table { font-size: 13.5px; }
+
+  .jac-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 760px) { .jac-grid { grid-template-columns: 1fr; } }
+  .jac-panel h5 { margin: 0 0 4px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .jac-read { font-size: 13px; color: var(--sub); line-height: 1.5; margin-top: 2px; }
+  .jac-read b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .jac-read i { display: inline-block; width: 12px; height: 2px; vertical-align: middle; margin-right: 5px; }
+  .slider { display: flex; flex-direction: column; gap: 2px; width: min(340px, 100%); }
+  .slider input { width: 100%; accent-color: var(--accent); margin: 0; }
+  .slider .ticks { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--faint); padding: 0 2px; font-variant-numeric: tabular-nums; }
+
+  #tip { position: fixed; z-index: 50; pointer-events: none; background: #fff; border: 1px solid #dcdbd5; border-radius: 8px;
+         box-shadow: 0 6px 20px rgba(0,0,0,.12); padding: 8px 11px; font-size: 13px; line-height: 1.5; max-width: 280px; }
+  #tip[hidden] { display: none; }
+  #tip .h { font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+  #tip .r { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  #tip .r b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  #tip .r span { color: var(--sub); }
+  #tip .k { width: 12px; height: 2px; flex: none; border-radius: 1px; }
+  #tip .k.dot { width: 9px; height: 9px; border-radius: 50%; }
+  #tip .k.bar { width: 10px; height: 9px; border-radius: 2px; }
+
+  /* code + bibtex */
+  .codemap td:first-child { white-space: normal; }
+  .codemap td { text-align: left; white-space: normal; }
+  .codemap td code { white-space: nowrap; }
+  pre { font: 13px/1.6 var(--mono); background: var(--band); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; color: var(--ink); margin: 12px 0; }
+  .bibwrap { position: relative; }
+  .copy { position: absolute; top: 10px; right: 10px; font: 500 12.5px var(--sans); background: #fff; color: var(--sub); border: 1px solid #d9d8d2; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .copy:hover { color: var(--ink); }
+  ul.related { padding-left: 1.2rem; margin: 0; }
+  ul.related li { margin: 6px 0; }
+
+  footer { border-top: 1px solid var(--line); padding: 30px 0 40px; font-size: 14px; color: var(--sub); text-align: center; line-height: 1.8; }
+  footer a { color: var(--sub); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  footer a:hover { color: var(--ink); }
+
+  @media (max-width: 600px) {
+    body { font-size: 16px; }
+    section { padding: 42px 0; }
+    .hero { padding-top: 40px; }
+    .authors { font-size: 1.02rem; }
+    .viz { padding: 14px 12px 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="container">
+    <a href="../">← Arnav Bendre</a>
+    <a class="gh" href="https://github.com/Aurnawr/Rethinking-CD" aria-label="Code on GitHub">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      Code
+    </a>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="container">
+    <div class="venue-tag">NeurIPS 2026 · VLM4RWD Workshop</div>
+    <h1>Rethinking the Effectiveness of Contrastive Decoding in Mitigating Hallucinations in MLLMs</h1>
+    <div class="authors">
+      <span class="me"><a href="../">Arnav Bendre</a></span>
+      <span>Guneesh Gupta</span>
+      <span>Shreyansh Modi</span>
+      <span>Kavish Grover</span>
+      <span>Chayan Aggarwal</span>
+    </div>
+    <div class="venue">Workshop on Grounded and Faithful Vision-Language Models for Real-World Deployment</div>
+    <div class="btns">
+      <a class="btn" href="https://arxiv.org/pdf/2607.25196">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm0 2.5L17.5 8H14V4.5zM8 12h8v1.6H8V12zm0 3.4h8V17H8v-1.6zM8 8.6h4v1.6H8V8.6z"/></svg>
+        Paper
+      </a>
+      <a class="btn" href="https://arxiv.org/abs/2607.25196">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 7h14v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-9zm4.5 2.5a.75.75 0 0 0 0 1.5h5a.75.75 0 0 0 0-1.5h-5z"/></svg>
+        arXiv
+      </a>
+      <a class="btn" href="https://github.com/Aurnawr/Rethinking-CD">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        Code
+      </a>
+      <a class="btn" href="#bibtex">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h5v6.5c0 3.2-1.6 5.9-4.6 7.5l-1-1.7c1.9-1.1 2.9-2.7 3.1-4.8H5V5zm9 0h5v6.5c0 3.2-1.6 5.9-4.6 7.5l-1-1.7c1.9-1.1 2.9-2.7 3.1-4.8H14V5z"/></svg>
+        BibTeX
+      </a>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TEASER ============ -->
+<section class="band" id="teaser" style="padding-top:44px">
+  <div class="container">
+    <figure class="teaser">
+      <!-- wide schematic -->
+      <svg class="schem schem-wide" viewBox="0 0 960 340" role="img" aria-labelledby="sw-t sw-d">
+        <title id="sw-t">How contrastive decoding scores the next token, and where it breaks</title>
+        <desc id="sw-d">The input goes through an expert pass on the clean input, giving logits E, and an amateur pass on a perturbed input, giving logits A. VCD noises the image, ICD adds a misleading instruction, SID keeps the weakest visual tokens. The contrastive adjustment d equals E minus A, the contrastive logits are E plus d, and the adaptive plausibility constraint keeps only tokens with expert probability at least beta times the maximum before the next token is chosen. Mark 1 on d: the adjustment is blind to hallucination. Mark 2 on the plausibility constraint: it pushes sampling towards greedy decoding. Mark 3 on a Gaussian noise box that can replace d: matched noise does as well.</desc>
+        <defs>
+          <marker id="ahw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8984"/></marker>
+        </defs>
+        <!-- input -->
+        <rect class="box tint" x="8" y="118" width="132" height="104" rx="10"/>
+        <text class="t-cap" x="22" y="138">INPUT</text>
+        <rect x="22" y="148" width="40" height="30" rx="4" fill="#dbe7f7"/>
+        <path d="M26,174 L38,160 L46,168 L52,162 L58,174 Z" fill="#7aa6dc"/>
+        <circle cx="52" cy="156" r="3.5" fill="#f2b84b"/>
+        <text class="t-sub" x="70" y="168">image <tspan font-style="italic">v</tspan></text>
+        <rect x="22" y="188" width="104" height="24" rx="12" fill="#fff" stroke="#cfcec8"/>
+        <text class="t-sub mid" x="74" y="204.5">prompt <tspan font-style="italic">x</tspan></text>
+        <!-- fork -->
+        <path class="wire" d="M140,170 C160,170 160,69 177,69" marker-end="url(#ahw)"/>
+        <path class="wire" d="M140,170 C160,170 160,236 177,236" marker-end="url(#ahw)"/>
+        <!-- expert -->
+        <rect class="box" x="180" y="34" width="240" height="70" rx="10"/>
+        <text class="t-title" x="196" y="62">Expert pass</text>
+        <text class="t-sub" x="196" y="85">MLLM on the clean input (<tspan font-style="italic">v</tspan>, <tspan font-style="italic">x</tspan>)</text>
+        <!-- amateur -->
+        <rect class="box" x="180" y="150" width="240" height="172" rx="10"/>
+        <text class="t-title" x="196" y="176">Amateur pass</text>
+        <text class="t-sub" x="196" y="197">same MLLM, perturbed input</text>
+        <rect class="chip" x="194" y="210" width="212" height="28" rx="6"/>
+        <circle cx="208" cy="224" r="5" fill="#2a78d6"/>
+        <text class="t-chip" x="220" y="228"><tspan class="m">VCD</tspan> · noised image</text>
+        <rect class="chip" x="194" y="244" width="212" height="28" rx="6"/>
+        <circle cx="208" cy="258" r="5" fill="#eb6834"/>
+        <text class="t-chip" x="220" y="262"><tspan class="m">ICD</tspan> · misleading instruction</text>
+        <rect class="chip" x="194" y="278" width="212" height="28" rx="6"/>
+        <circle cx="208" cy="292" r="5" fill="#1baf7a"/>
+        <text class="t-chip" x="220" y="296"><tspan class="m">SID</tspan> · weakest visual tokens</text>
+        <!-- E, A nodes -->
+        <path class="wire" d="M420,69 H437" marker-end="url(#ahw)"/>
+        <circle class="node" cx="455" cy="69" r="15"/><text class="node-t" x="455" y="74">E</text>
+        <path class="wire" d="M420,236 H437" marker-end="url(#ahw)"/>
+        <circle class="node" cx="455" cy="236" r="15"/><text class="node-t" x="455" y="241">A</text>
+        <!-- E bus to C and APC -->
+        <path class="wire" d="M470,69 H758 V125" marker-end="url(#ahw)"/>
+        <path class="wire" d="M758,69 H891 V125" marker-end="url(#ahw)"/>
+        <text class="t-chip mid" x="824" y="60">expert <tspan font-style="italic">p</tspan> sets the mask</text>
+        <!-- into d -->
+        <path class="wire" d="M470,69 C494,69 486,150 507,150" marker-end="url(#ahw)"/>
+        <path class="wire" d="M470,236 C494,236 486,190 507,190" marker-end="url(#ahw)"/>
+        <rect class="box" x="510" y="128" width="156" height="84" rx="10"/>
+        <text class="t-eq" x="588" y="169"><tspan class="v">d</tspan> = <tspan class="v">E</tspan> − <tspan class="v">A</tspan></text>
+        <text class="t-sub mid" x="588" y="193">contrastive adjustment</text>
+        <!-- ghost noise -->
+        <rect class="ghost" x="510" y="246" width="156" height="62" rx="10"/>
+        <text class="t-eq" x="588" y="273" style="font-size:16px"><tspan class="v">N</tspan>(<tspan class="v">μ</tspan>, <tspan class="v">σ</tspan>²)</text>
+        <text class="t-chip mid" x="588" y="294">matched noise, no image</text>
+        <path class="wire dash" d="M588,244 V216" marker-end="url(#ahw)" marker-start="url(#ahw)"/>
+        <text class="t-chip" x="597" y="234">swap</text>
+        <!-- C -->
+        <path class="wire" d="M666,170 H703" marker-end="url(#ahw)"/>
+        <rect class="box" x="706" y="128" width="104" height="84" rx="10"/>
+        <text class="t-eq" x="758" y="167" style="font-size:17px"><tspan class="v">E</tspan> + <tspan class="v">d</tspan></text>
+        <text class="t-sub mid" x="758" y="191">contrastive, <tspan font-style="italic">α</tspan> = 1</text>
+        <!-- APC -->
+        <path class="wire" d="M810,170 H827" marker-end="url(#ahw)"/>
+        <rect class="box" x="830" y="128" width="122" height="84" rx="10"/>
+        <text class="t-title mid" x="891" y="158">APC</text>
+        <text class="t-chip mid" x="891" y="180">keep <tspan font-style="italic">p</tspan> ≥ <tspan font-style="italic">β</tspan> · max <tspan font-style="italic">p</tspan></text>
+        <text class="t-chip mid" x="891" y="197">mask the rest</text>
+        <path class="wire" d="M891,212 V257" marker-end="url(#ahw)"/>
+        <rect x="838" y="260" width="106" height="34" rx="17" fill="#1f1f1f"/>
+        <text class="mid" x="891" y="282" fill="#fff" font-size="13" font-weight="500">next token</text>
+        <!-- badges -->
+        <g class="badge"><circle cx="666" cy="128" r="12"/><text x="666" y="132.5">1</text></g>
+        <g class="badge"><circle cx="830" cy="128" r="12"/><text x="830" y="132.5">2</text></g>
+        <g class="badge"><circle cx="666" cy="246" r="12"/><text x="666" y="250.5">3</text></g>
+      </svg>
+
+      <!-- tall schematic (narrow screens) -->
+      <svg class="schem schem-tall" viewBox="0 0 360 652" role="img" aria-labelledby="st-t st-d">
+        <title id="st-t">How contrastive decoding scores the next token, and where it breaks</title>
+        <desc id="st-d">Same diagram as the wide version, stacked vertically: input, expert and amateur passes, the adjustment d = E − A with a matched-noise alternative, the contrastive logits E + d, the plausibility constraint, and the next token. Marks 1, 2 and 3 match the three findings below.</desc>
+        <defs>
+          <marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8984"/></marker>
+        </defs>
+        <rect class="box tint" x="100" y="8" width="160" height="64" rx="10"/>
+        <rect x="114" y="22" width="36" height="28" rx="4" fill="#dbe7f7"/>
+        <path d="M118,46 L128,34 L135,41 L140,36 L146,46 Z" fill="#7aa6dc"/>
+        <circle cx="141" cy="29" r="3" fill="#f2b84b"/>
+        <text class="t-sub" x="158" y="35">image <tspan font-style="italic">v</tspan></text>
+        <text class="t-sub" x="158" y="56">+ prompt <tspan font-style="italic">x</tspan></text>
+        <path class="wire" d="M180,72 C180,90 79,84 79,101" marker-end="url(#aht)"/>
+        <path class="wire" d="M180,72 C180,90 257,84 257,101" marker-end="url(#aht)"/>
+        <rect class="box" x="8" y="104" width="142" height="70" rx="10"/>
+        <text class="t-title" x="20" y="130" style="font-size:14.5px">Expert pass</text>
+        <text class="t-chip" x="20" y="152">clean input (<tspan font-style="italic">v</tspan>, <tspan font-style="italic">x</tspan>)</text>
+        <rect class="box" x="162" y="104" width="190" height="150" rx="10"/>
+        <text class="t-title" x="174" y="130" style="font-size:14.5px">Amateur pass</text>
+        <text class="t-chip" x="174" y="149">perturbed input</text>
+        <rect class="chip" x="172" y="160" width="170" height="24" rx="6"/><circle cx="184" cy="172" r="4.5" fill="#2a78d6"/>
+        <text class="t-chip" x="194" y="176" style="font-size:11px"><tspan class="m">VCD</tspan> · noised image</text>
+        <rect class="chip" x="172" y="190" width="170" height="24" rx="6"/><circle cx="184" cy="202" r="4.5" fill="#eb6834"/>
+        <text class="t-chip" x="194" y="206" style="font-size:11px"><tspan class="m">ICD</tspan> · misleading prompt</text>
+        <rect class="chip" x="172" y="220" width="170" height="24" rx="6"/><circle cx="184" cy="232" r="4.5" fill="#1baf7a"/>
+        <text class="t-chip" x="194" y="236" style="font-size:11px"><tspan class="m">SID</tspan> · weak visual tokens</text>
+        <path class="wire" d="M79,174 V191" marker-end="url(#aht)"/>
+        <circle class="node" cx="79" cy="208" r="14"/><text class="node-t" x="79" y="213">E</text>
+        <path class="wire" d="M257,254 V267" marker-end="url(#aht)"/>
+        <circle class="node" cx="257" cy="284" r="14"/><text class="node-t" x="257" y="289">A</text>
+        <path class="wire" d="M79,222 V546"/>
+        <path class="wire" d="M79,360 H97" marker-end="url(#aht)"/>
+        <path class="wire" d="M79,458 H117" marker-end="url(#aht)"/>
+        <path class="wire" d="M79,546 H117" marker-end="url(#aht)"/>
+        <path class="wire" d="M257,298 C257,316 230,310 230,327" marker-end="url(#aht)"/>
+        <rect class="box" x="100" y="330" width="160" height="74" rx="10"/>
+        <text class="t-eq" x="180" y="365" style="font-size:18px"><tspan class="v">d</tspan> = <tspan class="v">E</tspan> − <tspan class="v">A</tspan></text>
+        <text class="t-chip mid" x="180" y="388">contrastive adjustment</text>
+        <rect class="ghost" x="272" y="336" width="80" height="62" rx="10"/>
+        <text class="t-eq" x="312" y="363" style="font-size:13px"><tspan class="v">N</tspan>(<tspan class="v">μ</tspan>, <tspan class="v">σ</tspan>²)</text>
+        <text class="t-chip mid" x="312" y="383" style="font-size:10.5px">matched noise</text>
+        <path class="wire" d="M180,404 V427" marker-end="url(#aht)"/>
+        <rect class="box" x="120" y="430" width="120" height="56" rx="10"/>
+        <text class="t-eq" x="180" y="457" style="font-size:16px"><tspan class="v">E</tspan> + <tspan class="v">d</tspan></text>
+        <text class="t-chip mid" x="180" y="476">contrastive, <tspan font-style="italic">α</tspan> = 1</text>
+        <path class="wire" d="M180,486 V511" marker-end="url(#aht)"/>
+        <rect class="box" x="120" y="514" width="120" height="64" rx="10"/>
+        <text class="t-title mid" x="180" y="539" style="font-size:14.5px">APC</text>
+        <text class="t-chip mid" x="180" y="559" style="font-size:11px">keep <tspan font-style="italic">p</tspan> ≥ <tspan font-style="italic">β</tspan> · max <tspan font-style="italic">p</tspan></text>
+        <path class="wire" d="M180,578 V603" marker-end="url(#aht)"/>
+        <rect x="128" y="606" width="104" height="32" rx="16" fill="#1f1f1f"/>
+        <text class="mid" x="180" y="627" fill="#fff" font-size="12.5" font-weight="500">next token</text>
+        <g class="badge"><circle cx="102" cy="332" r="11"/><text x="102" y="336.5" style="font-size:12px">1</text></g>
+        <g class="badge"><circle cx="240" cy="516" r="11"/><text x="240" y="520.5" style="font-size:12px">2</text></g>
+        <g class="badge"><circle cx="346" cy="338" r="11"/><text x="346" y="342.5" style="font-size:12px">3</text></g>
+      </svg>
+      <figcaption>Contrastive decoding (CD) runs the model twice: once on the clean input (the <i>expert</i>, logits <i>E</i>) and once on an input built to hallucinate (the <i>amateur</i>, logits <i>A</i>). It adds the gap <i>d</i> = <i>E</i> − <i>A</i> to the expert logits, then masks unlikely tokens with the adaptive plausibility constraint (APC). The numbered marks show where our three findings locate the effect.</figcaption>
+    </figure>
+
+    <p class="tldr"><b>TL;DR:</b> Contrastive decoding does not reduce object hallucination in multimodal LLMs. Its correction ignores whether the model is hallucinating, and its benchmark gains come from a plausibility constraint that turns sampling into near-greedy decoding.</p>
+
+    <div class="cards">
+      <article class="card">
+        <h3><span class="num">1</span>Blind to hallucination</h3>
+        <p>The contrastive shift ranks hallucinated “Yes” answers no better than chance (VCD: AUC 0.52) and pushes 96.5% of them further towards “Yes”. One constant bias beats every CD method on POPE.</p>
+        <a class="more" href="#blind">Finding 1 →</a>
+      </article>
+      <article class="card">
+        <h3><span class="num">2</span>Gains come from greedy decoding</h3>
+        <p>APC alone pulls sampled text towards greedy output (Jaccard 0.34 → 0.97 as β → 1). Plain greedy decoding beats every CD method on CHAIR, on all three models.</p>
+        <a class="more" href="#greedy">Finding 2 →</a>
+      </article>
+      <article class="card">
+        <h3><span class="num">3</span>No hallucination signal</h3>
+        <p>The adjustment amplifies hallucinated object tokens more often than it suppresses them, for every method and model. Swapping it for matched Gaussian noise does as well or better.</p>
+        <a class="more" href="#noise">Finding 3 →</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ABSTRACT ============ -->
+<section id="abstract">
+  <div class="container content abstract">
+    <h2>Abstract</h2>
+    <p>Multimodal large language models frequently describe objects that are not present in an image. Contrastive decoding has become a widely used inference-time remedy, and it is assumed to work by contrasting a normal forward pass against a hallucination-prone one so that hallucinated content is suppressed. However, whether the reported benchmark improvements actually arise from this mechanism has not been examined. Our key observation is that a correction which suppresses hallucination must depend on whether the model is hallucinating, and that this dependence can be measured directly inside the model. Following this idea, we analyse the internal computation of three contrastive decoding methods on both discriminative and generative tasks, and compare each against controls that remove the contrastive term while preserving its effect on the output. The correction turns out to be unrelated to hallucination at every layer, the gains in captioning come instead from a constraint that narrows sampling towards greedy decoding, and an unstructured perturbation of the same magnitude performs at least as well. Experiments across three models and standard hallucination benchmarks show that these improvements reflect a change in decoding behaviour rather than genuine hallucination mitigation.</p>
+  </div>
+</section>
+
+<!-- ============ BACKGROUND ============ -->
+<section id="background" class="band">
+  <div class="container content">
+    <h2>Contrastive decoding in one line</h2>
+    <p>At step \(t\), an MLLM scores each candidate token from the image \(v\), the prompt \(x\) and the tokens so far. Contrastive decoding runs the same model a second time on a perturbed input \((v^*, x^*)\) where the language prior should dominate, and subtracts:</p>
+    \[ z_{\text{cd}}(y_t) = (1+\alpha)\,\underbrace{z_\theta(y_t \mid v, x, y_{&lt;t})}_{E} \;-\; \alpha\,\underbrace{z_\theta(y_t \mid v^*, x^*, y_{&lt;t})}_{A} \;\overset{\alpha=1}{=}\; E + d_t, \qquad d_t = E - A. \]
+    <p>We call \(d_t\) the <b>contrastive adjustment</b>. Tokens the amateur favours are pushed down, so if the amateur hallucinates, hallucinated tokens should lose. The methods we study differ only in how the amateur is built:</p>
+    <div class="tbl">
+      <table class="wrap">
+        <thead><tr><th>Method</th><th style="text-align:left">Amateur input</th><th style="text-align:left">What it corrupts</th></tr></thead>
+        <tbody>
+          <tr><td><b>VCD</b> <span style="color:var(--faint)">Leng et al.</span></td><td style="text-align:left">image with forward-diffusion noise (step 500)</td><td style="text-align:left">visual evidence</td></tr>
+          <tr><td><b>ICD</b> <span style="color:var(--faint)">Wang et al.</span></td><td style="text-align:left">misleading role instruction prepended to the prompt</td><td style="text-align:left">instruction only; image kept</td></tr>
+          <tr><td><b>SID</b> <span style="color:var(--faint)">Huo et al.</span></td><td style="text-align:left">only the least-informative visual tokens, picked by early-layer attention</td><td style="text-align:left">visual tokens inside the forward pass</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>All three are paired with the <b>adaptive plausibility constraint (APC)</b>, which keeps only tokens the expert itself finds likely, so the subtraction cannot promote implausible ones:</p>
+    \[ \mathcal{V}_{\text{head}} = \Big\{\, w : p_\theta(w \mid v, x, y_{&lt;t}) \;\ge\; \beta \max_{w'} p_\theta(w' \mid v, x, y_{&lt;t}) \,\Big\}. \]
+    <p>Our question: when these methods score better on hallucination benchmarks, is it because \(d_t\) suppresses hallucinated content?</p>
+    <div class="setup">
+      <div><span class="k">Models</span>LLaVA-v1.5-7B<br>Qwen2.5-VL-7B-Instruct<br>InternVL3-8B</div>
+      <div><span class="k">Methods</span>VCD · ICD · SID<br>official code, α = 1, β = 0.1</div>
+      <div><span class="k">Benchmarks</span>POPE · CHAIR (500 COCO images)<br>LLaVA-Bench (In-the-Wild)</div>
+      <div><span class="k">Compute</span>one NVIDIA L4<br>3 seeds, 95% bootstrap CIs</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINDING 1 ============ -->
+<section id="blind">
+  <div class="container">
+    <div class="content">
+      <p class="eyebrow">Finding 1 · POPE, logit lens</p>
+      <h2>The contrastive shift is blind to hallucination</h2>
+      <p>On a Yes/No question, contrastive decoding adds one number to the model’s answer. We read that answer at every layer with the logit lens, as the margin \(m_\ell = z^{\text{Yes}}_\ell - z^{\text{No}}_\ell\), on both the expert and the amateur pass. Their difference \(\Delta_\ell = m^E_\ell - m^A_\ell\) is exactly what CD adds.</p>
+      <p>Among questions the model answers “Yes”, a real correction has to push <b>hallucinations</b> \(\mathcal{H}\) (object absent) away from “Yes” and leave <b>correct answers</b> \(\mathcal{T}\) (object present) alone. Setup: LLaVA-v1.5-7B, 9,000 POPE-COCO questions, 257–261 hallucinations against 3,453 correct positives.</p>
+    </div>
+
+    <div class="figrow">
+      <figure>
+        <a class="zoom" href="static/figures/fig1-probe-vs-shift.png"><img loading="lazy" src="static/figures/fig1-probe-vs-shift.png" width="1600" height="844" alt="Line chart by layer: object-presence and hallucination probes rise to near 1.0 by layer 12; VCD's normalised shift stays near zero until layer 13 and peaks at layer 19."></a>
+        <figcaption><b>The answer is settled before CD acts.</b> Object presence is decodable from layer 8 and the false “Yes” from layer 12. VCD’s mean shift on \(\mathcal{H}\) stays near zero there (0.19 log-odds) and peaks at layer 19. <span style="color:var(--faint)">Paper Fig. 1</span></figcaption>
+      </figure>
+      <figure>
+        <a class="zoom" href="static/figures/fig5-per-block.png"><img loading="lazy" src="static/figures/fig5-per-block.png" width="1600" height="1127" alt="Top: hallucination probe AUC by layer, saturating at layer 12. Bottom: per-block change in VCD's shift on hallucinations; blocks 13 to 19 push towards Yes, later blocks push back."></a>
+        <figcaption><b>Most of the late push is undone.</b> Blocks 13–19 move hallucinations +18.17 log-odds towards “Yes”, blocks 20–32 take back 14.56, and +3.32 reaches the output: the wrong direction on a hallucination. <span style="color:var(--faint)">Paper Fig. 5</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="content">
+      <p>The depth gap alone isn’t decisive, because a shift written at layer 19 still reaches the output. The direct test is whether \(\Delta_\ell\) separates \(\mathcal{H}\) from \(\mathcal{T}\) at any depth. It does not:</p>
+    </div>
+
+    <div class="figrow">
+      <figure>
+        <a class="zoom" href="static/figures/fig2-selectivity.png"><img loading="lazy" src="static/figures/fig2-selectivity.png" width="1600" height="1100" alt="AUC by layer: the expert presence probe (black) is near 1.0 from layer 8, while the selectivity of the VCD, ICD and SID shifts stays between about 0.4 and 0.7."></a>
+        <figcaption><b>The information is there; CD doesn’t use it.</b> Presence (black) is decodable from layer 8, yet no method’s shift separates hallucinations from correct answers. <span style="color:var(--faint)">Paper Fig. 2, left</span></figcaption>
+      </figure>
+      <figure>
+        <a class="zoom" href="static/figures/fig2-r2.png"><img loading="lazy" src="static/figures/fig2-r2.png" width="1600" height="1100" alt="R-squared of the shift explained by hallucination status, by layer: below 0.01 for VCD and below 0.03 for ICD and SID at every layer."></a>
+        <figcaption><b>Hallucination status explains almost nothing.</b> Under 1% of the variance of VCD’s shift and under 3% of ICD’s and SID’s, at every layer. <span style="color:var(--faint)">Paper Fig. 2, right</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="content">
+      <p class="tcap">Selectivity of the contrastive shift at the output layer (paper Table 1). Selectivity AUC: how often a hallucination is pushed away from “Yes” more than a correct answer (0.5 = chance). Shifts in log-odds; positive means towards “Yes”.</p>
+      <div class="tbl">
+        <table>
+          <thead>
+            <tr><th rowspan="2">Method</th><th colspan="2" style="text-align:center">Selectivity</th><th colspan="2" style="text-align:center">Mean shift Δ</th><th rowspan="2">Amateur<br>presence AUC</th><th rowspan="2">% of \(\mathcal{H}\) pushed<br>towards “Yes”</th></tr>
+            <tr><th>AUC</th><th>95% CI</th><th>on \(\mathcal{H}\)</th><th>on \(\mathcal{T}\)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><b>VCD</b></td><td>0.523</td><td>[0.49, 0.55]</td><td>+3.32</td><td>+3.60</td><td>0.777</td><td>96.5%</td></tr>
+            <tr><td><b>ICD</b></td><td>0.639</td><td>[0.60, 0.67]</td><td>−0.17</td><td>−0.06</td><td>0.940</td><td>25.7%</td></tr>
+            <tr><td><b>SID</b></td><td>0.691</td><td>[0.66, 0.72]</td><td>+1.61</td><td>+3.11</td><td>0.799</td><td>79.7%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>VCD’s confidence interval includes chance. SID ranks the two groups above chance only because it pushes <i>correct</i> answers towards “Yes” even harder (+3.11 vs +1.61). ICD is the only method with a negative shift on hallucinations (−0.17), but it differs from correct answers by 0.11 log-odds, against a median expert margin of 3.16: too small to flip an answer.</p>
+      <p>The reason is visible in the amateur column. Every amateur still encodes whether the object is present (AUC 0.78–0.94; ICD’s matches the expert because it never touches the image). The presence signal sits on both sides of the subtraction and cancels.</p>
+
+      <h3>Is the test just too blunt?</h3>
+      <p>Two controls say no. An oracle shift that is selective by construction scores AUC 0.885–0.889 through the same computation, and each method’s shift is <b>9–24× larger</b> than the smallest selective effect the test can detect. And replacing \(\Delta\) with a <b>single constant</b> added to every one of the 9,000 questions reaches 86.86% POPE accuracy, above greedy decoding (85.49%) and every CD method.</p>
+    </div>
+
+    <div class="figrow">
+      <figure>
+        <a class="zoom" href="static/figures/fig6-detection-limit.png"><img loading="lazy" src="static/figures/fig6-detection-limit.png" width="1600" height="945" alt="Measured selectivity rises as a selective component s is injected into VCD's shift; it crosses the detection threshold at s = 0.15 log-odds."></a>
+        <figcaption><b>A genuine effect would have registered.</b> Injecting just 0.15 log-odds of selective shift into VCD lifts its AUC past the detection threshold; VCD’s actual mean |Δ| is 3.64. <span style="color:var(--faint)">Paper Fig. 6</span></figcaption>
+      </figure>
+      <figure>
+        <a class="zoom" href="static/figures/fig7-constant-bias.png"><img loading="lazy" src="static/figures/fig7-constant-bias.png" width="1600" height="888" alt="POPE accuracy against a constant bias b added to every Yes/No margin; the curve peaks at 86.86% near b = 0.84, above the dashed lines marking each CD method's accuracy."></a>
+        <figcaption><b>One number for all questions beats CD.</b> POPE accuracy with a single constant <i>b</i> added to every Yes/No margin (<i>b</i> = 0 is greedy). Dashed lines: each method’s actual accuracy. <span style="color:var(--faint)">Paper Fig. 7</span></figcaption>
+      </figure>
+    </div>
+
+    <div class="content">
+      <p class="tcap">Scalar-bias sweep, POPE-COCO accuracy in % (paper Table 8). “Own mean” replaces each method’s per-question shift with its average, applied to every question.</p>
+      <div class="tbl">
+        <table>
+          <thead>
+            <tr><th>Method</th><th>Greedy</th><th>CD</th><th>Own mean as a constant</th><th>Best constant (<i>b</i>* = +0.84)</th><th>Yes-rate: expert → CD</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><b>VCD</b></td><td>85.49</td><td>85.04</td><td>86.48</td><td class="best">86.86</td><td>41.2 → 48.2</td></tr>
+            <tr><td><b>ICD</b></td><td>85.47</td><td>85.04</td><td>84.93</td><td class="best">86.89</td><td>41.3 → 40.0</td></tr>
+            <tr><td><b>SID</b></td><td>85.47</td><td>85.89</td><td>86.43</td><td class="best">86.89</td><td>41.3 → 44.3</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="take">CD shifts the Yes/No decision threshold by an amount set by how the amateur is built, not by whether the object is there. A larger α only magnifies a shift that already points the wrong way on 96.5% of VCD’s hallucinations.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINDING 2 ============ -->
+<section id="greedy" class="band">
+  <div class="container content">
+    <p class="eyebrow">Finding 2 · LLaVA-Bench, CHAIR</p>
+    <h2>The gains come from greedy decoding</h2>
+    <p>APC keeps only tokens with expert probability at least β times the top one. As β grows, fewer candidates survive, and sampling starts to look like greedy decoding. To isolate this, we sample under APC with <b>no contrastive term at all</b> (APC-S) and measure how close its answers are to greedy decoding and to plain sampling: Jaccard similarity over sub-word tokens, averaged over the 60 LLaVA-Bench (In-the-Wild) questions.</p>
+
+    <div class="viz wide" id="jac">
+      <h4>APC-S output converges on greedy decoding as β grows</h4>
+      <p class="vsub">Jaccard similarity of APC-S answers to greedy answers and to plain-sampling answers. Drag the slider or hover a chart.</p>
+      <div class="controls">
+        <label class="ctl-label" for="jac-beta">Plausibility threshold β</label>
+        <div class="slider">
+          <input type="range" id="jac-beta" min="0" max="6" step="1" value="1" aria-valuetext="beta = 0.1">
+          <div class="ticks" aria-hidden="true"><span>0</span><span>0.1</span><span>0.2</span><span>0.4</span><span>0.6</span><span>0.8</span><span>1</span></div>
+        </div>
+      </div>
+      <div class="legend"><span><i class="ln" style="background:var(--greedy)"></i>vs. greedy decoding</span><span><i class="ln" style="background:var(--sample)"></i>vs. plain sampling</span><span><i class="br" style="background:var(--greedy);opacity:.12"></i>95% bootstrap CI</span></div>
+      <div class="jac-grid">
+        <div class="jac-panel"><h5>LLaVA-v1.5-7B</h5><div class="plot"></div><div class="jac-read"></div></div>
+        <div class="jac-panel"><h5>Qwen2.5-VL-7B-Instruct</h5><div class="plot"></div><div class="jac-read"></div></div>
+        <div class="jac-panel"><h5>InternVL3-8B</h5><div class="plot"></div><div class="jac-read"></div></div>
+      </div>
+      <p class="viz-note" id="jac-note" aria-live="polite"></p>
+      <details class="data"><summary>Show data (paper Table 9)</summary><div id="jac-table"></div></details>
+    </div>
+    <p>The trend survives stricter definitions of overlap, an order-sensitive bigram version and a content-words-only version (paper Appendix D.3). At VCD’s default β = 0.1, APC-S is already closer to greedy than to sampling on every model.</p>
+
+    <h3>Greedy decoding beats every CD method</h3>
+    <p>If APC is what helps, greedy decoding should do at least as well as CD. On CHAIR (500 MS COCO images, prompt “Describe this image in detail.”, lower is better), it does better on every model, and APC-S without any contrast gets most of the way there.</p>
+
+    <div class="viz" id="chair">
+      <h4>CHAIR hallucination rate by decoding condition</h4>
+      <p class="vsub">Lower is better. The vertical line marks greedy decoding.</p>
+      <div class="controls">
+        <div><span class="ctl-label">Model</span>
+          <div class="seg" id="chair-model" role="group" aria-label="Model">
+            <button type="button" data-v="llava" aria-pressed="true">LLaVA-v1.5-7B</button>
+            <button type="button" data-v="qwen" aria-pressed="false">Qwen2.5-VL-7B</button>
+            <button type="button" data-v="intern" aria-pressed="false">InternVL3-8B</button>
+          </div>
+        </div>
+        <div><span class="ctl-label">Metric</span>
+          <div class="seg" id="chair-metric" role="group" aria-label="Metric">
+            <button type="button" data-v="S" aria-pressed="true">CHAIR-S</button>
+            <button type="button" data-v="I" aria-pressed="false">CHAIR-I</button>
+          </div>
+        </div>
+      </div>
+      <div class="legend"><span><i class="br" style="background:var(--sample)"></i>Sampling</span><span><i class="br" style="background:var(--vcd)"></i>VCD</span><span><i class="br" style="background:var(--sid)"></i>SID</span><span><i class="br" style="background:var(--apcs)"></i>APC-S (no contrast)</span><span><i class="br" style="background:var(--greedy)"></i>Greedy</span></div>
+      <div class="plot" id="chair-plot"></div>
+      <p class="viz-note" id="chair-note" aria-live="polite"></p>
+      <details class="data"><summary>Show data (paper Table 3)</summary><div id="chair-table"></div></details>
+    </div>
+
+    <p class="tcap">LLaVA-Bench (In-the-Wild) relative score, higher is better (paper Table 2). Greedy decoding scores best on all three models.</p>
+      <div class="tbl">
+      <table>
+        <thead><tr><th>Condition</th><th>LLaVA-v1.5-7B</th><th>Qwen2.5-VL-7B-Instruct</th><th>InternVL3-8B</th></tr></thead>
+        <tbody>
+          <tr><td>Sampling</td><td>56.1</td><td>73.9</td><td>76.3</td></tr>
+          <tr><td>APC-S (β = 0.1)</td><td>56.7</td><td>80.6</td><td>77.1</td></tr>
+          <tr class="hl"><td><b>Greedy</b></td><td class="best">62.1</td><td class="best">83.6</td><td class="best">79.3</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="take">Raising β moves the output closer to greedy and improves both CHAIR metrics. The reported benefit of CD tracks this shift, not the contrast.</p>
+  </div>
+</section>
+
+<!-- ============ FINDING 3 ============ -->
+<section id="noise">
+  <div class="container">
+    <div class="content">
+      <p class="eyebrow">Finding 3 · CHAIR</p>
+      <h2>The adjustment carries no hallucination signal</h2>
+      <p>If CD suppresses hallucinations, the adjustment \(d_t = E - A\) should push hallucinated object tokens down and real ones up. During CHAIR captioning we read \(d_t\) for every object word among the top-10 candidates at each step, and label it <b>real</b> or <b>hallucinated</b> against the image’s COCO annotations.</p>
+    </div>
+    <div class="content">
+      <div class="viz" id="amp">
+        <h4>How often the adjustment amplifies object tokens</h4>
+        <p class="vsub">Share of tokens with \(d_t &gt; 0\). A selective method would put red dots left of 50% and gray dots right of it.</p>
+        <div class="controls">
+          <div><span class="ctl-label">Tokens</span>
+            <div class="seg" id="amp-pop" role="group" aria-label="Token population">
+              <button type="button" data-v="emitted" aria-pressed="true">Emitted tokens</button>
+              <button type="button" data-v="top10" aria-pressed="false">All top-10 candidates</button>
+            </div>
+          </div>
+        </div>
+        <div class="legend"><span><i class="dt" style="background:var(--real)"></i>Real objects</span><span><i class="dt" style="background:var(--hall)"></i>Hallucinated objects</span></div>
+        <div class="plot" id="amp-plot"></div>
+        <p class="viz-note" id="amp-note" aria-live="polite"></p>
+        <details class="data"><summary>Show data (paper Tables 4 and 11)</summary><div id="amp-table"></div></details>
+      </div>
+      <p>For the tokens the model actually emits, hallucinated objects are amplified more often than suppressed by every method on every model. Across all top-10 candidates, real and hallucinated tokens move the same way in 7 of 9 model–method pairs. Plotted step by step, \(d_t\) looks like noise:</p>
+    </div>
+    <figure class="fig content">
+      <a class="zoom" href="static/figures/fig8-adjustment-traces.png"><img loading="lazy" src="static/figures/fig8-adjustment-traces.png" width="1600" height="841" alt="Four panels of contrastive adjustment values per object candidate under VCD, for real and hallucinated objects on LLaVA and Qwen; values fluctuate around zero with no trend."></a>
+      <figcaption><b>\(d_t\) for every top-10 object candidate under VCD.</b> Columns: real and hallucinated objects. Rows: LLaVA-v1.5-7B and Qwen2.5-VL-7B-Instruct. Red: amplified, blue: suppressed. No trend, no separation between the classes. <span style="color:var(--faint)">Paper Fig. 8</span></figcaption>
+    </figure>
+    <div class="content">
+      <p>So we replaced it with noise. The second forward pass is dropped and \(d_t\) is drawn from \(\mathcal{N}(\mu, \sigma^2)\) matched to each method’s statistics, independently at each step, truncated to the observed range, with APC unchanged. No image information goes into it.</p>
+      <p class="tcap">CHAIR on LLaVA-v1.5-7B, lower is better (paper Table 5). Each method next to Gaussian noise matched to its \(d_t\) statistics; three seeds.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Adjustment</th><th>CHAIR-S ↓</th><th>CHAIR-I ↓</th></tr></thead>
+          <tbody>
+            <tr><td>VCD (β = 0.1)</td><td>57.2</td><td>17.4</td></tr>
+            <tr class="hl"><td>Noise \(\mathcal{N}(0.026,\, 0.380^2)\)</td><td class="best">51.4</td><td class="best">14.1</td></tr>
+            <tr><td>SID (β = 0.1)</td><td>51.8</td><td class="best">15.0</td></tr>
+            <tr class="hl"><td>Noise \(\mathcal{N}(0.088,\, 0.851^2)\)</td><td class="best">51.5</td><td class="best">15.0</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="take">Structureless noise does as well as the real adjustment or better, so whatever CD improves on CHAIR doesn’t depend on what the amateur pass saw.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAKEAWAY ============ -->
+<section id="takeaway" class="band">
+  <div class="container content">
+    <h2>What this means</h2>
+    <p class="lede">The gains contrastive decoding reports on standard hallucination benchmarks are a change in decoding behaviour, not hallucination mitigation. Its shift carries no information about whether an answer is a hallucination, at any layer, including the layers where the model already knows the object is absent.</p>
+    <p>Before crediting an inference-time method with reducing hallucination, compare it against controls that keep its effect on the output and remove its mechanism:</p>
+    <ol class="checks">
+      <li><b>Greedy decoding</b>, the baseline APC quietly moves towards.</li>
+      <li><b>The constraint alone</b> (APC-S), without the contrastive term.</li>
+      <li><b>A constant shift</b> of the decision margin, which carries no image information.</li>
+      <li><b>Matched noise</b> in place of the adjustment.</li>
+    </ol>
+    <h3>Limitations</h3>
+    <p>The mechanistic analysis covers one model (LLaVA-v1.5-7B) on one discriminative benchmark, because the logit lens needs per-layer states for both passes of every question. Whether the same holds in larger models or inside free-form generation is open. CHAIR only recognises the 80 COCO categories, and LLaVA-Bench scores come from a single LLM judge. Both bound the absolute numbers, not the comparisons, since every condition is scored the same way.</p>
+  </div>
+</section>
+
+<!-- ============ CODE ============ -->
+<section id="code">
+  <div class="container content">
+    <h2>Code</h2>
+    <p>Everything runs on a single 24 GB GPU; all paper results were produced on one NVIDIA L4. Each experiment folder in the <a href="https://github.com/Aurnawr/Rethinking-CD">repository</a> is self-contained, with its own README and setup steps.</p>
+    <pre class="nomath"><code>git clone https://github.com/Aurnawr/Rethinking-CD.git
+cd Rethinking-CD</code></pre>
+    <div class="tbl">
+      <table class="codemap">
+        <thead><tr><th>Experiment</th><th>Folder</th></tr></thead>
+        <tbody>
+          <tr><td>Logit lens, presence probes, oracle and scalar-bias controls (Finding 1)</td><td><a href="https://github.com/Aurnawr/Rethinking-CD/tree/master/mech_interp"><code>mech_interp/</code></a></td></tr>
+          <tr><td>APC-S vs. greedy and sampling, Jaccard sweep over β (Finding 2)</td><td><a href="https://github.com/Aurnawr/Rethinking-CD/tree/master/jaccard_experiment"><code>jaccard_experiment/</code></a></td></tr>
+          <tr><td>CHAIR scores for sampling, CD, APC-S and greedy (Finding 2)</td><td><a href="https://github.com/Aurnawr/Rethinking-CD/tree/master/CHAIR_analysis"><code>CHAIR_analysis/</code></a></td></tr>
+          <tr><td>Contrastive adjustment on object tokens, Gaussian proxy (Finding 3)</td><td><a href="https://github.com/Aurnawr/Rethinking-CD/tree/master/CHAIR_analysis/contrastive_adjustment"><code>CHAIR_analysis/contrastive_adjustment/</code></a></td></tr>
+          <tr><td>InternVL3-8B ports of the experiments above</td><td><a href="https://github.com/Aurnawr/Rethinking-CD/tree/master/intern"><code>intern/</code></a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RELATED ============ -->
+<section id="related" class="band">
+  <div class="container content">
+    <h2>Related work</h2>
+    <ul class="related">
+      <li>Yin et al., <a href="https://arxiv.org/abs/2504.10020">The Mirage of Performance Gains: Why Contrastive Decoding Fails to Mitigate Object Hallucinations in MLLMs?</a> The statistical critique on POPE that this work extends inside the model and to free-form generation.</li>
+      <li>Leng et al., <a href="https://arxiv.org/abs/2311.16922">Visual Contrastive Decoding</a> (VCD), CVPR 2024.</li>
+      <li>Wang et al., <a href="https://arxiv.org/abs/2403.18715">Instruction Contrastive Decoding</a> (ICD), ACL Findings 2024.</li>
+      <li>Huo et al., <a href="https://arxiv.org/abs/2408.02032">Self-Introspective Decoding</a> (SID), ICLR 2025.</li>
+      <li>Li et al., <a href="https://arxiv.org/abs/2305.10355">POPE</a>; Rohrbach et al., <a href="https://arxiv.org/abs/1809.02156">CHAIR</a>; nostalgebraist, <a href="https://www.lesswrong.com/posts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens">the logit lens</a>.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ BIBTEX ============ -->
+<section id="bibtex">
+  <div class="container content">
+    <h2>BibTeX</h2>
+    <div class="bibwrap">
+      <button class="copy" type="button" id="copy-bib">Copy</button>
+<pre class="bib" id="bib"><code>@inproceedings{rethinkingcd2026,
+  title     = {Rethinking the Effectiveness of Contrastive Decoding in Mitigating Hallucinations in {MLLMs}},
+  author    = {Bendre, Arnav and Gupta, Guneesh and Modi, Shreyansh and Grover, Kavish and Aggarwal, Chayan},
+  booktitle = {NeurIPS 2026 Workshop on VLM4RWD},
+  year      = {2026}
+}</code></pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <a href="../">← Back to aurnawr.github.io</a><br>
+    Page layout inspired by the <a href="https://nerfies.github.io/">Nerfies</a> project page.
+  </div>
+</footer>
+
+<div id="tip" role="tooltip" hidden></div>
+
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const root = getComputedStyle(document.documentElement);
+  const C = {};
+  ['vcd','icd','sid','greedy','sample','apcs','hall','real'].forEach(k => C[k] = root.getPropertyValue('--' + k).trim());
+  const GRID = '#ecebe6', AXIS = '#c9c8c2', INK = '#1f1f1f';
+
+  const el = (tag, a = {}, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const tx = (p, x, y, s, a = {}) => { const t = el('text', Object.assign({ x, y }, a), p); t.textContent = s; return t; };
+  const signed = (v, d = 3) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
+
+  /* ---------- tooltip ---------- */
+  const tip = document.getElementById('tip');
+  function place(pt) {
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = pt.x + 14, y = pt.y + 14;
+    if (x + w > innerWidth - 8) x = pt.x - w - 14;
+    if (x < 8) x = 8;
+    if (y + h > innerHeight - 8) y = pt.y - h - 14;
+    if (y < 8) y = 8;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  }
+  function tipShow(head, rows, pt) {
+    tip.replaceChildren();
+    if (head) { const h = document.createElement('div'); h.className = 'h'; h.textContent = head; tip.appendChild(h); }
+    rows.forEach(r => {
+      const d = document.createElement('div'); d.className = 'r';
+      if (r.key) { const k = document.createElement('i'); k.className = 'k' + (r.shape ? ' ' + r.shape : ''); k.style.background = r.key; d.appendChild(k); }
+      const b = document.createElement('b'); b.textContent = r.v; d.appendChild(b);
+      if (r.l) { const s = document.createElement('span'); s.textContent = r.l; d.appendChild(s); }
+      tip.appendChild(d);
+    });
+    tip.hidden = false; place(pt);
+  }
+  const tipHide = () => { tip.hidden = true; };
+  function bindTip(node, fn) {
+    const show = e => {
+      const [h, rows] = fn();
+      let pt;
+      if (e.type === 'focus') { const r = node.getBoundingClientRect(); pt = { x: r.left + Math.min(r.width, 240), y: r.top }; }
+      else pt = { x: e.clientX, y: e.clientY };
+      tipShow(h, rows, pt);
+    };
+    node.addEventListener('pointerenter', show);
+    node.addEventListener('pointermove', e => { if (!tip.hidden) place({ x: e.clientX, y: e.clientY }); });
+    node.addEventListener('pointerleave', tipHide);
+    node.addEventListener('focus', show);
+    node.addEventListener('blur', tipHide);
+  }
+  addEventListener('scroll', tipHide, { passive: true });
+
+  function watch(node, fn) {
+    let w = 0;
+    const run = () => { const nw = Math.floor(node.clientWidth); if (nw > 0 && nw !== w) { w = nw; fn(nw); } };
+    if ('ResizeObserver' in window) new ResizeObserver(run).observe(node); else addEventListener('resize', run);
+    run();
+  }
+  function seg(id, onPick) {
+    const btns = [...document.querySelectorAll('#' + id + ' button')];
+    btns.forEach(b => b.addEventListener('click', () => {
+      btns.forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+      onPick(b.dataset.v);
+    }));
+  }
+  function buildTable(host, caption, headRows, bodyRows) {
+    const t = document.createElement('table');
+    if (caption) { const c = document.createElement('p'); c.className = 'tcap'; c.textContent = caption; host.appendChild(c); }
+    const wrap = document.createElement('div'); wrap.className = 'tbl';
+    const th = document.createElement('thead');
+    headRows.forEach((row, ri) => {
+      const tr = document.createElement('tr'); if (ri < headRows.length - 1) tr.className = 'grp';
+      row.forEach(cell => { const c = document.createElement('th'); const [txt, span] = Array.isArray(cell) ? cell : [cell, 1]; c.textContent = txt; if (span > 1) c.colSpan = span; tr.appendChild(c); });
+      th.appendChild(tr);
+    });
+    t.appendChild(th);
+    const tb = document.createElement('tbody');
+    bodyRows.forEach(row => { const tr = document.createElement('tr'); row.forEach(v => { const c = document.createElement('td'); c.textContent = v; tr.appendChild(c); }); tb.appendChild(tr); });
+    t.appendChild(tb); wrap.appendChild(t); host.appendChild(wrap);
+  }
+
+  /* ---------- Finding 2a: Jaccard vs beta (paper Table 9) ---------- */
+  const BETAS = [0, 0.1, 0.2, 0.4, 0.6, 0.8, 1];
+  const JAC = [
+    { m: 'LLaVA-v1.5-7B',
+      g: [[.339,.293,.391],[.405,.352,.465],[.405,.357,.450],[.455,.403,.511],[.507,.458,.559],[.583,.526,.641],[.968,.936,.993]],
+      s: [[.279,.239,.323],[.314,.273,.360],[.312,.271,.357],[.333,.291,.379],[.337,.294,.385],[.342,.299,.390],[.351,.305,.403]] },
+    { m: 'Qwen2.5-VL-7B-Instruct',
+      g: [[.371,.328,.422],[.428,.377,.484],[.477,.424,.534],[.496,.443,.554],[.552,.494,.613],[.620,.557,.682],[.779,.721,.835]],
+      s: [[.317,.276,.363],[.346,.302,.397],[.371,.320,.430],[.369,.322,.421],[.383,.334,.439],[.379,.330,.436],[.378,.330,.435]] },
+    { m: 'InternVL3-8B',
+      g: [[.399,.348,.455],[.420,.378,.466],[.475,.418,.534],[.516,.460,.575],[.564,.507,.624],[.628,.567,.692],[.733,.674,.790]],
+      s: [[.342,.298,.392],[.357,.316,.405],[.415,.357,.479],[.419,.362,.482],[.405,.352,.464],[.417,.363,.477],[.415,.360,.476]] }
+  ];
+  let sel = 1;
+  const slider = document.getElementById('jac-beta');
+  const jacNote = document.getElementById('jac-note');
+  const jacDraws = [];
+  const f3 = v => v.toFixed(3);
+
+  function setSel(j) {
+    if (j === sel) return;
+    sel = j; slider.value = j; slider.setAttribute('aria-valuetext', 'beta = ' + BETAS[j]);
+    jacDraws.forEach(f => f()); jacNoteUpdate();
+  }
+  function jacNoteUpdate() {
+    const b = BETAS[sel];
+    if (sel === 0) { jacNote.textContent = 'β = 0: the constraint removes no tokens, so APC-S is plain sampling. This point is a reference, not an APC setting.'; return; }
+    if (sel === 6) { jacNote.textContent = 'β = 1: only the top-scoring token survives each step, so APC-S approaches greedy decoding (0.968 on LLaVA). Near-tied logits plus autoregressive divergence keep Qwen and InternVL lower.'; return; }
+    const gaps = JAC.map(d => d.g[sel][0] - d.s[sel][0]);
+    const n = gaps.filter(g => g > 0).length;
+    const lo = Math.min(...gaps).toFixed(3), hi = Math.max(...gaps).toFixed(3);
+    jacNote.textContent = `β = ${b}${sel === 1 ? ' (VCD’s default)' : ''}: APC-S output is closer to greedy decoding than to plain sampling on ${n} of 3 models, by ${lo}–${hi}.`;
+  }
+
+  document.querySelectorAll('#jac .jac-panel').forEach((panel, i) => {
+    const d = JAC[i], host = panel.querySelector('.plot'), read = panel.querySelector('.jac-read');
+    let W = 0;
+    function draw() {
+      if (!W) return;
+      host.replaceChildren();
+      const H = 196, m = { l: 34, r: 58, t: 10, b: 38 };
+      const pw = W - m.l - m.r, ph = H - m.t - m.b;
+      const X = b => m.l + pw * b, Y = v => m.t + ph * (1 - v);
+      const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img',
+        'aria-label': `${d.m}: at beta ${BETAS[sel]}, Jaccard to greedy ${f3(d.g[sel][0])}, to sampling ${f3(d.s[sel][0])}` }, host);
+      [0, .25, .5, .75, 1].forEach(v => {
+        el('line', { x1: m.l, x2: m.l + pw, y1: Y(v), y2: Y(v), stroke: v === 0 ? AXIS : GRID, 'stroke-width': 1 }, svg);
+        tx(svg, m.l - 6, Y(v) + 4, v === 0 ? '0' : String(v), { 'text-anchor': 'end', class: 'tk' });
+      });
+      [0, .2, .4, .6, .8, 1].forEach(b => tx(svg, X(b), H - m.b + 16, String(b), { 'text-anchor': 'middle', class: 'tk' }));
+      tx(svg, m.l + pw / 2, H - 4, 'threshold β', { 'text-anchor': 'middle', class: 'tk' });
+      el('line', { x1: X(BETAS[sel]), x2: X(BETAS[sel]), y1: m.t, y2: m.t + ph, stroke: INK, 'stroke-opacity': .28, 'stroke-width': 1 }, svg);
+      [['s', C.sample, 'sampling'], ['g', C.greedy, 'greedy']].forEach(([k, c, lab]) => {
+        const arr = d[k];
+        const upper = arr.map((v, j) => `${X(BETAS[j])},${Y(v[2])}`);
+        const lower = arr.map((v, j) => `${X(BETAS[j])},${Y(v[1])}`).reverse();
+        el('polygon', { points: upper.concat(lower).join(' '), fill: c, 'fill-opacity': .1 }, svg);
+        el('polyline', { points: arr.map((v, j) => `${X(BETAS[j])},${Y(v[0])}`).join(' '), fill: 'none', stroke: c, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+        arr.forEach((v, j) => el('circle', { cx: X(BETAS[j]), cy: Y(v[0]), r: j === sel ? 5.5 : 4, fill: c, stroke: '#fff', 'stroke-width': 2 }, svg));
+        tx(svg, X(1) + 9, Y(arr[6][0]) + 4, lab, { class: 'lab' });
+      });
+      const hit = el('rect', { x: m.l - 12, y: m.t, width: pw + 24, height: ph, fill: 'transparent' }, svg);
+      hit.addEventListener('pointermove', e => {
+        const r = svg.getBoundingClientRect();
+        const bx = (e.clientX - r.left - m.l) / pw;
+        let best = 0; BETAS.forEach((b, j) => { if (Math.abs(b - bx) < Math.abs(BETAS[best] - bx)) best = j; });
+        setSel(best);
+      });
+      read.replaceChildren();
+      [['g', C.greedy, 'to greedy'], ['s', C.sample, 'to sampling']].forEach(([k, c, lab], idx) => {
+        const v = d[k][sel];
+        const line = document.createElement('div');
+        const key = document.createElement('i'); key.style.background = c; line.appendChild(key);
+        const b = document.createElement('b'); b.textContent = f3(v[0]); line.appendChild(b);
+        line.appendChild(document.createTextNode(` ${lab} [${f3(v[1])}, ${f3(v[2])}]`));
+        read.appendChild(line);
+      });
+    }
+    watch(host, w => { W = w; draw(); });
+    jacDraws.push(draw);
+  });
+  slider.addEventListener('input', () => setSel(+slider.value));
+  jacNoteUpdate();
+  buildTable(document.getElementById('jac-table'), 'Jaccard similarity of APC-S to greedy decoding and to plain sampling, with paired bootstrap 95% CIs. β = 0 is plain sampling.',
+    [[['', 1], ...JAC.map(d => [d.m, 2])], ['β', ...JAC.flatMap(() => ['vs. greedy', 'vs. sampling'])]],
+    BETAS.map((b, j) => [String(b), ...JAC.flatMap(d => [d.g[j], d.s[j]].map(v => `${f3(v[0])} [${f3(v[1])}, ${f3(v[2])}]`))]));
+
+  /* ---------- Finding 2b: CHAIR bars (paper Table 3) ---------- */
+  const CH_COND = [
+    { lab: 'Sampling', c: C.sample },
+    { lab: 'VCD (β = 0.1)', c: C.vcd },
+    { lab: 'VCD (β = 0.2)', c: C.vcd },
+    { lab: 'SID (β = 0.1)', c: C.sid },
+    { lab: 'SID (β = 0.2)', c: C.sid },
+    { lab: 'APC-S (β = 0.1)', c: C.apcs },
+    { lab: 'Greedy', c: C.greedy }
+  ];
+  const CHAIR = {
+    llava:  { name: 'LLaVA-v1.5-7B',          S: [57.4, 57.2, 56.2, 51.8, 51.5, 53.4, 50.0], I: [17.3, 17.4, 16.5, 15.0, 14.8, 16.3, 13.9] },
+    qwen:   { name: 'Qwen2.5-VL-7B-Instruct', S: [31.2, 28.8, 25.1, 29.6, 27.8, 23.5, 22.8], I: [10.4,  8.9,  8.1,  9.9,  8.6,  7.5,  7.3] },
+    intern: { name: 'InternVL3-8B',           S: [33.5, 33.5, 33.1, 33.2, 33.0, 29.7, 29.4], I: [ 9.1,  9.5,  9.1,  9.3,  9.2,  8.4,  8.1] }
+  };
+  let chModel = 'llava', chMetric = 'S', chW = 0;
+  const chHost = document.getElementById('chair-plot'), chNote = document.getElementById('chair-note');
+  function chairDraw() {
+    if (!chW) return;
+    chHost.replaceChildren();
+    const W = chW, vals = CHAIR[chModel][chMetric], mName = chMetric === 'S' ? 'CHAIR-S' : 'CHAIR-I';
+    const max = chMetric === 'S' ? 60 : 20, ticks = chMetric === 'S' ? [0, 10, 20, 30, 40, 50, 60] : [0, 5, 10, 15, 20];
+    const lw = W < 480 ? 108 : 132, r = 40, rowH = 32, barH = 18, top = 26, bot = 26;
+    const H = top + rowH * CH_COND.length + bot, pw = W - lw - r, X = v => lw + pw * v / max;
+    const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `${mName} on ${CHAIR[chModel].name} for seven decoding conditions; greedy is lowest at ${vals[6].toFixed(1)}` }, chHost);
+    ticks.forEach(t => {
+      el('line', { x1: X(t), x2: X(t), y1: top - 4, y2: top + rowH * CH_COND.length, stroke: t === 0 ? AXIS : GRID, 'stroke-width': 1 }, svg);
+      tx(svg, X(t), H - 8, String(t), { 'text-anchor': 'middle', class: 'tk' });
+    });
+    const gv = vals[6];
+    CH_COND.forEach((c, i) => {
+      const y = top + rowH * i + (rowH - barH) / 2, v = vals[i], x0 = X(0), x1 = X(v), rr = Math.min(4, (x1 - x0) / 2);
+      tx(svg, lw - 10, y + barH / 2 + 4.5, c.lab, { 'text-anchor': 'end', class: 'cat' });
+      el('path', { d: `M${x0},${y}H${x1 - rr}Q${x1},${y} ${x1},${y + rr}V${y + barH - rr}Q${x1},${y + barH} ${x1 - rr},${y + barH}H${x0}Z`, fill: c.c }, svg);
+      tx(svg, x1 + 6, y + barH / 2 + 4.5, v.toFixed(1), { class: 'val' });
+    });
+    el('line', { x1: X(gv), x2: X(gv), y1: top - 8, y2: top + rowH * CH_COND.length, stroke: INK, 'stroke-opacity': .55, 'stroke-width': 1 }, svg);
+    tx(svg, X(gv), top - 12, 'greedy', { 'text-anchor': 'middle', class: 'lab' });
+    CH_COND.forEach((c, i) => {
+      const v = vals[i];
+      const hit = el('rect', { x: 0, y: top + rowH * i, width: W, height: rowH, class: 'hit', tabindex: 0, 'aria-label': `${c.lab}: ${mName} ${v.toFixed(1)}` }, svg);
+      bindTip(hit, () => [c.lab, [{ key: c.c, shape: 'bar', v: `${mName} ${v.toFixed(1)}`, l: i === 6 ? 'lowest of all conditions' : `${signed(v - gv, 1)} vs. greedy` }]]);
+    });
+    const cd = [1, 2, 3, 4].reduce((a, b) => vals[b] < vals[a] ? b : a, 1);
+    chNote.textContent = `${CHAIR[chModel].name}, ${mName}: greedy scores ${gv.toFixed(1)}. The best contrastive setting, ${CH_COND[cd].lab}, scores ${vals[cd].toFixed(1)}; APC-S with no contrast scores ${vals[5].toFixed(1)}.`;
+  }
+  watch(chHost, w => { chW = w; chairDraw(); });
+  seg('chair-model', v => { chModel = v; chairDraw(); });
+  seg('chair-metric', v => { chMetric = v; chairDraw(); });
+  const mk = ['llava', 'qwen', 'intern'];
+  buildTable(document.getElementById('chair-table'), 'CHAIR on 500 MS COCO images, lower is better.',
+    [[['', 1], ...mk.map(k => [CHAIR[k].name, 2])], ['Condition', ...mk.flatMap(() => ['CHAIR-S', 'CHAIR-I'])]],
+    CH_COND.map((c, i) => [c.lab, ...mk.flatMap(k => [CHAIR[k].S[i].toFixed(1), CHAIR[k].I[i].toFixed(1)])]));
+
+  /* ---------- Finding 3: amplification dumbbell (paper Tables 4 & 11) ---------- */
+  // [mean d real, % real amplified, mean d hallucinated, % hallucinated amplified]
+  const AMP = {
+    emitted: {
+      'LLaVA-v1.5-7B':          { VCD: [0.210, 61.1, 0.451, 66.5], SID: [0.845, 60.8, 0.270, 51.1], ICD: [0.091, 59.9, 0.123, 69.0] },
+      'Qwen2.5-VL-7B-Instruct': { VCD: [-0.343, 37.5, 0.026, 51.1], SID: [1.212, 70.5, 0.662, 61.3], ICD: [0.221, 55.1, 0.182, 53.9] },
+      'InternVL3-8B':           { VCD: [0.327, 54.7, 0.798, 68.3], SID: [2.865, 90.6, 2.458, 87.6], ICD: [0.138, 51.8, 0.324, 61.5] }
+    },
+    top10: {
+      'LLaVA-v1.5-7B':          { VCD: [0.061, 53.3, 0.016, 49.7], SID: [0.505, 58.7, -0.193, 38.8], ICD: [0.087, 59.3, 0.089, 63.8] },
+      'Qwen2.5-VL-7B-Instruct': { VCD: [-0.327, 37.6, -0.250, 39.0], SID: [0.565, 58.2, 0.225, 51.9], ICD: [0.105, 49.9, 0.094, 49.8] },
+      'InternVL3-8B':           { VCD: [-0.027, 45.0, -0.018, 45.9], SID: [1.084, 66.0, 0.428, 56.2], ICD: [0.013, 46.0, 0.063, 49.7] }
+    }
+  };
+  const METHODS = ['VCD', 'SID', 'ICD'];
+  let pop = 'emitted', ampW = 0;
+  const ampHost = document.getElementById('amp-plot'), ampNote = document.getElementById('amp-note');
+  function ampDraw() {
+    if (!ampW) return;
+    ampHost.replaceChildren();
+    const W = ampW, data = AMP[pop], models = Object.keys(data);
+    const lw = W < 520 ? 52 : 70, r = 16, top = 4, headH = 26, rowH = 26, bot = 48;
+    const H = top + models.length * (headH + METHODS.length * rowH) + bot;
+    const X = p => lw + (W - lw - r) * p / 100, yEnd = H - bot;
+    const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Percentage of real and hallucinated object tokens amplified by each contrastive method, per model' }, ampHost);
+    [0, 25, 50, 75, 100].forEach(p => {
+      el('line', { x1: X(p), x2: X(p), y1: top, y2: yEnd, stroke: p === 50 ? '#b5b4ae' : GRID, 'stroke-width': 1 }, svg);
+      tx(svg, X(p), yEnd + 16, p + '%', { 'text-anchor': 'middle', class: 'tk' });
+    });
+    tx(svg, X(50) - 8, yEnd + 36, '← mostly suppressed', { 'text-anchor': 'end', class: 'lab' });
+    tx(svg, X(50) + 8, yEnd + 36, 'mostly amplified →', { class: 'lab' });
+    let y = top;
+    models.forEach(mName => {
+      tx(svg, 0, y + 18, mName, { class: 'grp' });
+      y += headH;
+      METHODS.forEach(meth => {
+        const [dr, ar, dh, ah] = data[mName][meth], cy = y + rowH / 2;
+        tx(svg, 0, cy + 4.5, meth, { class: 'cat' });
+        el('line', { x1: X(ar), x2: X(ah), y1: cy, y2: cy, stroke: '#cfcec8', 'stroke-width': 2 }, svg);
+        el('circle', { cx: X(ar), cy, r: 5, fill: C.real, stroke: '#fff', 'stroke-width': 2 }, svg);
+        el('circle', { cx: X(ah), cy, r: 5, fill: C.hall, stroke: '#fff', 'stroke-width': 2 }, svg);
+        const hit = el('rect', { x: 0, y, width: W, height: rowH, class: 'hit', tabindex: 0,
+          'aria-label': `${mName}, ${meth}: hallucinated ${ah.toFixed(1)}% amplified, real ${ar.toFixed(1)}% amplified` }, svg);
+        bindTip(hit, () => [`${mName} · ${meth}`, [
+          { key: C.hall, shape: 'dot', v: `${ah.toFixed(1)}% amplified`, l: `hallucinated · mean d ${signed(dh)}` },
+          { key: C.real, shape: 'dot', v: `${ar.toFixed(1)}% amplified`, l: `real · mean d ${signed(dr)}` }
+        ]]);
+        y += rowH;
+      });
+    });
+    let hallUp = 0, same = 0, intended = [];
+    models.forEach(mName => METHODS.forEach(meth => {
+      const [, ar, , ah] = data[mName][meth];
+      if (ah > 50) hallUp++;
+      if ((ar > 50) === (ah > 50)) same++;
+      if (ar > 50 && ah < 50) intended.push(`${mName.split('-')[0]} + ${meth}`);
+    }));
+    ampNote.textContent = pop === 'emitted'
+      ? `Emitted tokens: hallucinated objects are amplified more often than suppressed in ${hallUp} of 9 model–method pairs. None shows the intended split (real up, hallucinated down).`
+      : `All top-10 candidates: real and hallucinated tokens move the same way in ${same} of 9 pairs. The intended split appears in ${intended.length} (${intended.join(', ')}); for VCD both shares sit within a few points of 50%.`;
+  }
+  watch(ampHost, w => { ampW = w; ampDraw(); });
+  seg('amp-pop', v => { pop = v; ampDraw(); });
+  const ampTbl = document.getElementById('amp-table');
+  [['emitted', 'Emitted object tokens (paper Table 4)'], ['top10', 'All top-10 object candidates (paper Table 11)']].forEach(([k, cap]) => {
+    const rows = [];
+    Object.keys(AMP[k]).forEach(mName => METHODS.forEach(meth => {
+      const [dr, ar, dh, ah] = AMP[k][mName][meth];
+      rows.push([mName, meth, signed(dr), ar.toFixed(1) + '%', (100 - ar).toFixed(1) + '%', signed(dh), ah.toFixed(1) + '%', (100 - ah).toFixed(1) + '%']);
+    }));
+    buildTable(ampTbl, cap, [[['', 2], ['Real objects', 3], ['Hallucinated objects', 3]], ['Model', 'Method', 'mean d', 'amplified', 'suppressed', 'mean d', 'amplified', 'suppressed']], rows);
+  });
+
+  /* ---------- BibTeX copy ---------- */
+  const copyBtn = document.getElementById('copy-bib');
+  copyBtn.addEventListener('click', async () => {
+    const text = document.getElementById('bib').innerText;
+    try { await navigator.clipboard.writeText(text); copyBtn.textContent = 'Copied'; }
+    catch (e) {
+      const range = document.createRange(); range.selectNodeContents(document.getElementById('bib'));
+      const s = getSelection(); s.removeAllRanges(); s.addRange(range); copyBtn.textContent = 'Press ⌘C / Ctrl+C';
+    }
+    setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1800);
+  });
+})();
+</script>
+</body>
+</html>
