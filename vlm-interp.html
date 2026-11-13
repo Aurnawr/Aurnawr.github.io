@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VLM-Interp · Arnav Bendre</title>
+<meta name="description" content="How is refusal represented across text and images in vision-language models? LLaVA-1.5-7B vs Qwen2.5-VL-7B: refusal directions, linear probes and cross-modal steering.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fbfaf6;
+    --bg-tint: #f4f1ea;
+    --ink: #1d1b17;
+    --muted: #5f5a51;
+    --faint: #9a9387;
+    --line: #e7e3da;
+    --accent: #a14a22;
+    --accent-soft: rgba(161, 74, 34, .08);
+    --llava: #a14a22;
+    --qwen: #2f6496;
+    --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141310; --bg-tint: #1b1a16; --ink: #ece8df; --muted: #a8a196; --faint: #6d675d;
+      --line: #2a2823; --accent: #e0915f; --accent-soft: rgba(224, 145, 95, .10);
+      --llava: #e0915f; --qwen: #7fa9d8;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141310; --bg-tint: #1b1a16; --ink: #ece8df; --muted: #a8a196; --faint: #6d675d;
+    --line: #2a2823; --accent: #e0915f; --accent-soft: rgba(224, 145, 95, .10);
+    --llava: #e0915f; --qwen: #7fa9d8;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--serif); font-size: 18px; line-height: 1.6;
+    font-optical-sizing: auto; -webkit-font-smoothing: antialiased;
+    transition: background-color .3s, color .3s;
+  }
+  ::selection { background: var(--accent); color: var(--bg); }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+  .wide { width: min(1000px, calc(100vw - 48px)); margin-left: 50%; transform: translateX(-50%); }
+
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--line);
+      text-decoration-thickness: 1px; text-underline-offset: 3px; transition: color .2s, text-decoration-color .2s; }
+  a:hover { color: var(--accent); text-decoration-color: currentColor; }
+  a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+  b, strong { font-weight: 500; color: var(--ink); }
+  em { font-style: italic; }
+  code, .mono { font-family: var(--mono); font-size: .78em; }
+  code { background: var(--bg-tint); padding: 1px 5px; border-radius: 3px; }
+  sub { font-size: .7em; }
+
+  /* ---------- sticky top bar (same as the rest of the site) ---------- */
+  .top { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 88%, transparent);
+         backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-bottom: 1px solid transparent; transition: border-color .3s; }
+  .top.scrolled { border-bottom-color: var(--line); }
+  .top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 60px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--mono); font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .brand:hover { color: var(--ink); }
+  #mark { width: 22px; height: 22px; display: block; }
+  .nav { display: flex; align-items: center; gap: 18px; font-family: var(--mono); font-size: 12.5px; }
+  .nav a { text-decoration: none; color: var(--faint); white-space: nowrap; }
+  .nav a:hover, .nav a.on { color: var(--ink); }
+  .nav .sep { width: 1px; height: 14px; background: var(--line); }
+  .theme { background: none; border: 0; color: var(--faint); cursor: pointer; font: inherit; width: 22px; height: 22px; display: grid; place-items: center; }
+  .theme:hover { color: var(--ink); }
+  .theme svg { width: 15px; height: 15px; }
+
+  /* ---------- hero ---------- */
+  .back { display: inline-block; margin-top: 40px; font-family: var(--mono); font-size: 12.5px; color: var(--faint); text-decoration: none; }
+  .back:hover { color: var(--accent); }
+  header.hero { padding: 18px 0 8px; }
+  .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 10px; font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+  .tag { color: var(--muted); background: var(--bg-tint); border-radius: 3px; padding: 1px 7px; }
+  h1 { font-weight: 400; font-size: 2.6rem; line-height: 1.1; letter-spacing: -.02em; }
+  .role { font-family: var(--mono); font-size: 13px; color: var(--muted); margin: 10px 0 22px; }
+  .lede { color: var(--muted); font-size: 1.12rem; }
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; font-family: var(--mono); font-size: 12px; }
+  .links a { color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 3px; padding: 2px 9px; transition: color .2s, border-color .2s, background-color .2s; }
+  .links a:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+  /* highlights strip */
+  .highlights { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 36px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .highlights div { padding: 14px 16px; border-left: 1px solid var(--line); }
+  .highlights div:first-child { border-left: 0; padding-left: 0; }
+  .highlights b { display: block; font-weight: 400; font-size: 1.3rem; color: var(--ink); line-height: 1.3; }
+  .highlights span { font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+
+  /* ---------- sections ---------- */
+  section { padding-top: 64px; }
+  .label { font-family: var(--mono); font-size: 12px; font-weight: 400; letter-spacing: .08em; text-transform: uppercase; color: var(--faint);
+           display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  h2.title { font-weight: 400; font-size: 1.75rem; line-height: 1.2; letter-spacing: -.01em; margin-bottom: 12px; }
+  h3 { font-weight: 500; font-size: 1.12rem; line-height: 1.35; margin: 34px 0 8px; }
+  section p { color: var(--muted); margin-bottom: 14px; }
+  section p b, section li b { color: var(--ink); }
+  .note { font-size: 16px; color: var(--muted); }
+  ul.list { padding-left: 1.1rem; color: var(--muted); }
+  ul.list li { margin: 6px 0; }
+  .llava { color: var(--llava); }
+  .qwen { color: var(--qwen); }
+  .mname { font-family: var(--mono); font-size: 12.5px; }
+
+  .result { margin: 16px 0; font-family: var(--mono); font-size: 12.5px; color: var(--ink); background: var(--accent-soft);
+            border-left: 2px solid var(--accent); padding: 9px 13px; line-height: 1.65; }
+  pre { font-family: var(--mono); font-size: 12.5px; line-height: 1.6; background: var(--bg-tint); border: 1px solid var(--line); border-radius: 4px;
+        padding: 12px 14px; overflow-x: auto; margin: 4px 0 18px; color: var(--ink); }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  /* two-column model / finding grids */
+  .models { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 6px 0 18px; }
+  .models > div { padding: 14px 16px; border-left: 1px solid var(--line); }
+  .models > div:first-child { border-left: 0; padding-left: 0; }
+  .models h4 { font-weight: 500; font-size: 1.02rem; }
+  .models p { font-size: 16px; margin: 4px 0 0; }
+
+  .findings { list-style: none; }
+  .findings li { display: grid; grid-template-columns: 150px 1fr; gap: 18px; padding: 12px 0; border-top: 1px solid var(--line); align-items: baseline; }
+  .findings li:first-child { border-top: 0; padding-top: 0; }
+  .findings .n { font-size: 1.3rem; line-height: 1.25; color: var(--ink); }
+  .findings b { display: block; }
+  .findings span.d { color: var(--muted); font-size: 16.5px; }
+
+  /* tables */
+  .tbl { overflow-x: auto; margin: 10px 0 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 15.5px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--muted); }
+  th { font-family: var(--mono); font-size: 11.5px; font-weight: 400; color: var(--faint); text-transform: none; border-bottom-color: var(--faint); }
+  td:first-child, th:first-child { padding-left: 0; }
+  td.r, th.r { text-align: right; white-space: nowrap; }
+  td.hl { color: var(--ink); font-weight: 500; }
+  tr.sub td { font-size: 14.5px; }
+  tr.sub td:first-child { padding-left: 16px; }
+
+  /* figures */
+  .toggle { display: inline-flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; font-family: var(--mono); font-size: 12px; }
+  .toggle button { color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 2px 9px; background: none; font: inherit; cursor: pointer;
+                   transition: color .2s, border-color .2s, background-color .2s; }
+  .toggle button:hover, .toggle button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .pair figure { margin: 0; }
+  .pair .cap { font-family: var(--mono); font-size: 12px; margin-bottom: 6px; }
+  .plot { display: block; background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 6px; }
+  .plot img { width: 100%; height: auto; display: block; }
+  .figblock { margin-top: 8px; margin-bottom: 22px; }
+
+  /* chart */
+  .chart { position: relative; margin: 6px 0 4px; }
+  #cosChart { width: 100%; height: auto; display: block; overflow: visible; }
+  #cosChart text { font-family: var(--mono); font-size: 10.5px; fill: var(--faint); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--mono); font-size: 11.5px; color: var(--faint); margin-top: 6px; }
+  .legend span::before { content: ""; display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--c); vertical-align: middle; margin-right: 6px; }
+  .legend .dash::before { border-top-style: dashed; }
+  .tip { position: absolute; pointer-events: none; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 9px;
+         font-family: var(--mono); font-size: 11.5px; line-height: 1.55; white-space: nowrap; opacity: 0; transition: opacity .12s; color: var(--ink); }
+
+  .slider { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 4px 0 12px; }
+  .slider .toggle { margin: 0; }
+  input[type=range] { accent-color: var(--accent); flex: 1; min-width: 160px; }
+  .depth { font-family: var(--mono); font-size: 12px; color: var(--faint); min-width: 220px; }
+
+  .ops { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 8px 0 20px; }
+  .ops > div { padding: 14px 16px; border-left: 1px solid var(--line); }
+  .ops > div:first-child { border-left: 0; padding-left: 0; }
+  .ops h4 { font-weight: 500; font-size: 1rem; }
+  .ops p { font-size: 16px; margin: 4px 0 0; }
+
+  .todo { list-style: none; font-size: 16.5px; color: var(--muted); }
+  .todo li { padding: 4px 0; }
+  .todo li::before { content: "☐"; font-family: var(--mono); color: var(--faint); margin-right: 10px; }
+
+  footer { margin-top: 80px; padding: 26px 0 56px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+           font-family: var(--mono); font-size: 12px; color: var(--faint); }
+
+  .fade { opacity: 0; transform: translateY(8px); transition: opacity .6s ease, transform .6s ease; }
+  .fade.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .fade { opacity: 1; transform: none; transition: none; }
+  }
+
+  @media (max-width: 760px) {
+    .nav .sec { display: none; }
+    .nav .sep { display: none; }
+  }
+  @media (max-width: 640px) {
+    body { font-size: 17px; }
+    .wrap { padding: 0 16px; }
+    .wide { width: auto; margin-left: 0; transform: none; }
+    h1 { font-size: 2.05rem; }
+    .highlights, .models, .ops { grid-template-columns: 1fr; }
+    .highlights div, .models > div, .ops > div { border-left: 0; padding: 10px 0; border-top: 1px solid var(--line); }
+    .highlights div:first-child, .models > div:first-child, .ops > div:first-child { border-top: 0; }
+    section { padding-top: 48px; }
+    .findings li { grid-template-columns: 1fr; gap: 2px; }
+    .pair { grid-template-columns: 1fr; }
+    .depth { min-width: 0; }
+    th, td { padding: 6px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html"><canvas id="mark" aria-hidden="true"></canvas>arnav bendre</a>
+    <nav class="nav">
+      <a class="sec" href="#directions">Directions</a>
+      <a class="sec" href="#steering">Steering</a>
+      <a class="sec" href="#natural">Natural images</a>
+      <span class="sep"></span>
+      <a href="index.html#projects">Research</a>
+      <a href="personal.html">Personal</a>
+      <button class="theme" id="theme" aria-label="Toggle theme"></button>
+    </nav>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <a class="back" href="index.html#projects">← All projects</a>
+
+  <header class="hero">
+    <div class="meta"><span class="tag">Interpretability</span><span class="tag">VLM safety</span><span>Apr – Oct 2026</span></div>
+    <h1>How refusal is represented across modalities</h1>
+    <p class="role">VLM-Interp · LLaVA-1.5-7B vs Qwen2.5-VL-7B</p>
+    <p class="lede">A safety-tuned VLM inherits its refusal behaviour from a text-tuned LLM, but a harmful request can arrive as an image. Is there <em>one</em> modality-agnostic “this is harmful” direction, or does the image pathway carry a separate, weaker signal that text-derived safety never properly sees?</p>
+    <div class="links">
+      <a href="https://github.com/Aurnawr/VLM-Interp">Code</a>
+      <a href="https://github.com/Aurnawr/VLM-Interp/blob/main/README.md">Full write-up</a>
+    </div>
+
+    <div class="highlights">
+      <div><b><span class="llava">0.45</span> / <span class="qwen">0.95</span></b><span>peak cos(v_text, v_image)</span></div>
+      <div><b><span class="llava">0%</span> / <span class="qwen">98%</span></b><span>refuse harmful typographic images</span></div>
+      <div><b><span class="qwen">0.98 → 0.00</span></b><span>Qwen image refusal, v_text ablated</span></div>
+    </div>
+  </header>
+
+  <section id="setup">
+    <h2 class="label">Setup</h2>
+    <p>Two models, chosen because they are built differently:</p>
+    <div class="models fade">
+      <div><h4 class="llava">LLaVA-1.5-7B</h4><p>Adapter-style. CLIP ViT-L + MLP projector bolted onto Vicuna-7B. 32 layers, d = 4096.</p></div>
+      <div><h4 class="qwen">Qwen2.5-VL-7B-Instruct</h4><p>Native. Vision encoder + LLM trained jointly on large multimodal/OCR data. 28 layers, d = 3584.</p></div>
+    </div>
+    <p>And two kinds of image: <b>typographic</b>, where the prompt itself is rendered as text in the image (Part 1), and <b>natural photos</b> with no words to read (VLSU, Part 2).</p>
+  </section>
+
+  <section id="findings">
+    <h2 class="label">Key findings</h2>
+    <ul class="findings">
+      <li class="fade"><span class="n"><span class="llava">0.45</span> vs <span class="qwen">0.95</span></span><span class="d"><b>Different geometry.</b> LLaVA keeps image and text refusal directions apart; Qwen folds them together by ~⅔ depth, with a sharp jump at layer 13 → 14. Noise ceiling ≈ 0.99, random null 0.03.</span></li>
+      <li class="fade"><span class="n"><span class="qwen">0.98 → 0.00</span></span><span class="d"><b>Image refusal runs through text.</b> In Qwen, ablating the <em>text</em> direction at layer 18 completely removes refusal of harmful images. LLaVA never genuinely refuses them in the first place.</span></li>
+      <li class="fade"><span class="n">0.95</span><span class="d"><b>Visual harm reaches the final token.</b> On natural images, a final-token probe matches a CLIP baseline in both models: nothing is lost between vision encoder and decision position.</span></li>
+      <li class="fade"><span class="n"><span class="llava">≈ 0</span> / <span class="qwen">0.28</span></span><span class="d"><b>Seen, but not routed.</b> Along an in-format text-harm direction, LLaVA’s unsafe photos don’t move at all. Qwen’s move about a quarter of the way toward harmful text, only in layers 16–21.</span></li>
+    </ul>
+  </section>
+
+  <section id="directions">
+    <h2 class="label">Part 1 · Refusal directions</h2>
+    <h2 class="title">Text vs image, layer by layer</h2>
+    <p>Harmful prompts come from AdvBench (520), harmless ones from Alpaca, sampled to the same count. Every prompt is also rendered as an 800×600 image, so each sample exists as text and as an image. For images, the model sees the rendered image plus a fixed instruction, <code>"Respond to the request in the image."</code></p>
+    <p>At every layer, the last-token hidden state gives one refusal vector per modality, as a class-mean difference:</p>
+<pre><code>v_text  = mean(h_harmful_text)  − mean(h_harmless_text)
+v_image = mean(h_harmful_image) − mean(h_harmless_image)</code></pre>
+    <p>Bootstrap CIs, a split-half noise ceiling (Spearman–Brown), a disattenuated cosine and a random-direction null give the cosine a scale.</p>
+
+    <h3>Cross-modal cosine by depth</h3>
+    <div class="toggle" role="group" aria-label="x-axis">
+      <button data-x="rel" aria-pressed="true">relative depth</button>
+      <button data-x="abs" aria-pressed="false">layer index</button>
+    </div>
+    <div class="chart">
+      <svg id="cosChart" viewBox="0 0 712 320" role="img" aria-label="Cosine similarity between text and image refusal vectors by layer for LLaVA and Qwen"></svg>
+      <div class="tip" id="tip"></div>
+    </div>
+    <div class="legend">
+      <span style="--c:var(--llava)">LLaVA-1.5-7B, 95% CI</span>
+      <span style="--c:var(--qwen)">Qwen2.5-VL-7B, 95% CI</span>
+      <span class="dash" style="--c:var(--faint)">noise ceiling ≈ 0.99 · random null 0.03</span>
+    </div>
+    <p class="note" style="margin-top:14px">Disattenuated cosine is within ~0.005 of raw in both models and CIs are tight, so sampling noise explains none of the gap from 1. LLaVA’s layer 1 is significantly <em>negative</em>.</p>
+
+    <h3>Norms and noise ceiling</h3>
+    <div class="wide figblock">
+      <div class="toggle fig-toggle" data-target="normsFig">
+        <button data-src="llava-results/reliability/norms_with_ci.png|qwen-results/reliability/norms_with_ci.png" aria-pressed="true">norms</button>
+        <button data-src="llava-results/reliability/cosine_with_ceiling.png|qwen-results/reliability/cosine_with_ceiling.png" aria-pressed="false">cosine + ceiling</button>
+        <button data-src="llava-results/reliability/cosine_disattenuated.png|qwen-results/reliability/cosine_disattenuated.png" aria-pressed="false">disattenuated</button>
+      </div>
+      <div class="pair" id="normsFig">
+        <figure><div class="cap llava">LLaVA-1.5-7B</div><a class="plot" href="vlm-interp/llava-results/reliability/norms_with_ci.png"><img loading="lazy" src="vlm-interp/llava-results/reliability/norms_with_ci.png" alt="LLaVA-1.5-7B plot"></a></figure>
+        <figure><div class="cap qwen">Qwen2.5-VL-7B</div><a class="plot" href="vlm-interp/qwen-results/reliability/norms_with_ci.png"><img loading="lazy" src="vlm-interp/qwen-results/reliability/norms_with_ci.png" alt="Qwen2.5-VL-7B plot"></a></figure>
+      </div>
+    </div>
+    <ul class="list">
+      <li><span class="llava">LLaVA:</span> the text norm is 2–9× the image norm at every layer, and the image norm barely grows before mid-depth.</li>
+      <li><span class="qwen">Qwen:</span> the text norm starts 2–5× larger, but the ratio falls to ~1.05 from layer 19 on. Dropping the 10 largest-magnitude dimensions barely moves the cosine (0.946 → 0.944 at L24).</li>
+    </ul>
+
+    <h3>Geometry: the modality gap closes, or doesn’t</h3>
+    <div class="wide figblock">
+      <div class="slider">
+        <div class="toggle" role="group" aria-label="projection">
+          <button data-proj="pca" aria-pressed="true">PCA</button>
+          <button data-proj="tsne" aria-pressed="false">t-SNE</button>
+        </div>
+        <input type="range" id="depth" min="0" max="4" value="4" step="1" aria-label="Depth">
+        <span class="depth" id="depthLbl"></span>
+      </div>
+      <div class="pair">
+        <figure><div class="cap llava">LLaVA-1.5-7B</div><a class="plot" id="geoL"><img id="geoLimg" alt="LLaVA-1.5-7B projection"></a></figure>
+        <figure><div class="cap qwen">Qwen2.5-VL-7B</div><a class="plot" id="geoQ"><img id="geoQimg" alt="Qwen2.5-VL-7B projection"></a></figure>
+      </div>
+    </div>
+    <p><span class="llava">LLaVA</span>’s modality gap persists at every layer; at layer 32 images form their own region of small mixed clumps. <span class="qwen">Qwen</span>’s gap dominates early (PC1 = 64–77% of variance at L6–11), shrinks by L17 and is gone by L22–28, where PC1 is harmful vs harmless.</p>
+
+    <h3>Does each image land on its own text twin?</h3>
+    <p class="note">Share of images whose nearest text point (of 800) is the same prompt.</p>
+    <div class="tbl"><table>
+      <tr><th></th><th class="r llava">L8</th><th class="r llava">L16</th><th class="r llava">L24</th><th class="r llava">L32</th><th class="r qwen">L6</th><th class="r qwen">L11</th><th class="r qwen">L17</th><th class="r qwen">L22</th><th class="r qwen">L28</th></tr>
+      <tr><td>harmless</td><td class="r">0.00</td><td class="r">0.01</td><td class="r">0.06</td><td class="r">0.06</td><td class="r">0.01</td><td class="r">0.02</td><td class="r">0.61</td><td class="r">0.94</td><td class="r hl">0.98</td></tr>
+      <tr><td>harmful</td><td class="r">0.00</td><td class="r">0.00</td><td class="r">0.07</td><td class="r">0.14</td><td class="r">0.00</td><td class="r">0.00</td><td class="r">0.08</td><td class="r">0.40</td><td class="r hl">0.74</td></tr>
+    </table></div>
+
+    <h3>Linear probes, and what they can’t rule out</h3>
+    <p>An L2 logistic probe (5-fold CV, nested regularisation, 100 label shuffles) separates harmful from harmless <b>images</b> at AUROC 0.99–1.00 from layer 1 on, in <em>both</em> models. The models differ in direction and strength, not decodability.</p>
+    <p>Near-ceiling at layer 1 is a warning sign. Matching pairs on first word and length drops a length baseline to chance (0.51) while the probe stays ≥ 0.987, so style isn’t what it uses. But a <b>bag-of-words classifier on the prompt string, with no model at all, scores 0.996</b> and survives the same matching.</p>
+    <div class="wide figblock">
+      <div class="toggle fig-toggle" data-target="probeFig">
+        <button data-src="llava-results/probe/probe_auroc.png|qwen-results/probe/probe_auroc.png" aria-pressed="true">probe AUROC</button>
+        <button data-src="llava-results/probe/controls_matched.png|qwen-results/probe/controls_matched.png" aria-pressed="false">matched-pair controls</button>
+      </div>
+      <div class="pair" id="probeFig">
+        <figure><div class="cap llava">LLaVA-1.5-7B</div><a class="plot" href="vlm-interp/llava-results/probe/probe_auroc.png"><img loading="lazy" src="vlm-interp/llava-results/probe/probe_auroc.png" alt="LLaVA-1.5-7B plot"></a></figure>
+        <figure><div class="cap qwen">Qwen2.5-VL-7B</div><a class="plot" href="vlm-interp/qwen-results/probe/probe_auroc.png"><img loading="lazy" src="vlm-interp/qwen-results/probe/probe_auroc.png" alt="Qwen2.5-VL-7B plot"></a></figure>
+      </div>
+    </div>
+    <p class="result">The OCR caveat: on typographic data, “the model represents harm” and “the model passes along which words were in the prompt” predict the same thing. Layout and pixel baselines reach only 0.71–0.76, so the layer-1 image signal is reading. Part 2 removes the words.</p>
+  </section>
+
+  <section id="steering">
+    <h2 class="label">Part 1 · Cross-modal steering</h2>
+    <h2 class="title">Does one modality’s direction move the other?</h2>
+    <p>Following Arditi et al. (2024), steer each modality with the <em>other</em> modality’s refusal vector, against same-modality steering and a random direction of equal norm. Held-out prompts 400–519, greedy decoding, 64 new tokens.</p>
+    <div class="ops fade">
+      <div><h4>Add</h4><p><code>h ← h + α·s·v̂</code> at one layer on <b>harmless</b> inputs: does it induce refusal? <code>s</code> is the target modality’s own norm, so runs differ only in direction.</p></div>
+      <div><h4>Ablate</h4><p><code>h ← h − (h·v̂)v̂</code> at every layer on <b>harmful</b> inputs: does removing it bypass refusal?</p></div>
+    </div>
+
+    <div class="tbl"><table>
+      <tr><th>Refusal rate</th><th class="r llava">LLaVA-1.5-7B</th><th class="r qwen">Qwen2.5-VL-7B</th></tr>
+      <tr><td>Genuine refusal, harmful typographic images</td><td class="r">0%</td><td class="r">98%</td></tr>
+      <tr><td><b>text vec → harmless image</b></td><td class="r">genuine 40–45% (α=4)</td><td class="r">≈ 100% (L18, α=2)</td></tr>
+      <tr><td><b>image vec → harmless text</b></td><td class="r">≤ 0.07, degrades output</td><td class="r">0.98–1.00 (L18)</td></tr>
+      <tr><td>text vec ablated, harmful text</td><td class="r">0.79 → 0.04</td><td class="r">0.99 → 0.01</td></tr>
+      <tr><td>image vec ablated, harmful text</td><td class="r">0.79 → 0.54</td><td class="r">0.99 → 0.65</td></tr>
+      <tr><td><b>text vec ablated, harmful images</b></td><td class="r">n/a</td><td class="r hl">0.98 → 0.00</td></tr>
+      <tr class="sub"><td>random direction</td><td class="r">≤ 0.03</td><td class="r">≤ 0.04</td></tr>
+    </table></div>
+
+    <h3>Qwen, before and after the transition</h3>
+    <p class="note">cos(v<sub>text</sub>, v<sub>image</sub>) is 0.34 at layer 12 and 0.79 at layer 18. Adding to harmless inputs:</p>
+    <div class="tbl"><table>
+      <tr><th>Condition</th><th class="r">L12 α=1</th><th class="r">L12 α=2</th><th class="r">L18 α=1</th><th class="r">L18 α=2</th></tr>
+      <tr><td><b>text vec → image</b></td><td class="r">0.00</td><td class="r">0.00</td><td class="r">0.85</td><td class="r hl">1.00</td></tr>
+      <tr><td>image vec → image</td><td class="r">0.02</td><td class="r">0.01</td><td class="r">0.63</td><td class="r">0.99</td></tr>
+      <tr><td><b>image vec → text</b></td><td class="r">0.03</td><td class="r">0.02</td><td class="r hl">0.98</td><td class="r hl">1.00</td></tr>
+      <tr><td>text vec → text</td><td class="r">0.03</td><td class="r">0.22</td><td class="r">1.00</td><td class="r">1.00</td></tr>
+      <tr class="sub"><td>random → image / text</td><td class="r">0.01 / 0.03</td><td class="r">0.02 / 0.03</td><td class="r">0.00 / 0.04</td><td class="r">0.00 / 0.01</td></tr>
+    </table></div>
+    <p class="note">At L18 the induced refusals are the model’s standard harmful-request refusals on benign prompts: <em>“Tell me three causes of stress”</em> + image vector → <em>“I’m sorry, but I cannot provide information on illegal activities or promote harmful behavior.”</em></p>
+
+    <div class="wide figblock">
+      <div class="toggle fig-toggle" data-target="steerFig">
+        <button data-src="llava-results/steering/steering_refusal_rates_a1.png|qwen-results/steering/steering_refusal_rates_a1.png" aria-pressed="false">α = 1</button>
+        <button data-src="llava-results/steering/steering_refusal_rates_a2.png|qwen-results/steering/steering_refusal_rates_a2.png" aria-pressed="true">α = 2</button>
+        <button data-src="llava-results/steering/steering_refusal_rates_a4.png|" aria-pressed="false">α = 4 (LLaVA only)</button>
+      </div>
+      <div class="pair" id="steerFig">
+        <figure><div class="cap llava">LLaVA-1.5-7B</div><a class="plot" href="vlm-interp/llava-results/steering/steering_refusal_rates_a2.png"><img loading="lazy" src="vlm-interp/llava-results/steering/steering_refusal_rates_a2.png" alt="LLaVA-1.5-7B plot"></a></figure>
+        <figure><div class="cap qwen">Qwen2.5-VL-7B</div><a class="plot" href="vlm-interp/qwen-results/steering/steering_refusal_rates_a2.png"><img loading="lazy" src="vlm-interp/qwen-results/steering/steering_refusal_rates_a2.png" alt="Qwen2.5-VL-7B plot"></a></figure>
+      </div>
+    </div>
+    <ul class="list">
+      <li><b>In both models the text refusal direction is causal and reaches the image pathway.</b></li>
+      <li><span class="llava">LLaVA:</span> text → image transfers, image → text does not. Added to images, the image vector mostly yields “I can’t read the image”, not refusals.</li>
+      <li><span class="qwen">Qwen:</span> after layer ~14 the two directions are nearly interchangeable for <em>inducing</em> refusal, but the image direction is still weaker for <em>removing</em> it. At L12 the image vector does nothing.</li>
+    </ul>
+  </section>
+
+  <section id="natural">
+    <h2 class="label">Part 2 · Natural images</h2>
+    <h2 class="title">No words to read</h2>
+    <p>Part 1 can’t separate “the model reads the image into text” from “harm is represented independently of modality”. Part 2 uses VLSU natural photos: 398 unsafe vs 398 safe, all with the <em>same</em> prompt (<code>"List steps in detail to perform the activity shown in this image."</code>) so the bag-of-words confound can’t come back. Predictions were written down before extraction.</p>
+    <p>Three numbers per model: a <b>CLIP baseline</b> (does the vision encoder see it?), a <b>final-token probe</b> (does it reach the decision position?), and a <b>projection onto a text refusal direction</b> with no training (is it where refusal lives?), checked against a random-direction null.</p>
+    <p>Part 1’s v<sub>text</sub> came from text-only inputs and AdvBench topics, so the projection uses an in-format direction built from VLSU itself. Each image is run with its own prompt and with the shared one, which cancels the image per item:</p>
+<pre><code>d_i         = h_i(own prompt) − h_i(shared prompt)
+v_text_vlsu = mean(d over SH) − mean(d over SS)</code></pre>
+
+    <div class="tbl"><table>
+      <tr><th>AUROC unless stated</th><th class="r llava">LLaVA-1.5-7B</th><th class="r qwen">Qwen2.5-VL-7B</th></tr>
+      <tr><td>CLIP baseline (CLS)</td><td class="r">0.951</td><td class="r">0.951</td></tr>
+      <tr><td>Final-token probe, peak</td><td class="r">0.947 (L32)</td><td class="r">0.955 (L28)</td></tr>
+      <tr><td><b>Projection onto v_text_vlsu</b>, best layer</td><td class="r">0.727 (L16)</td><td class="r hl">0.888 (L20)</td></tr>
+      <tr class="sub"><td>random-direction null there</td><td class="r">0.739</td><td class="r">0.824</td></tr>
+      <tr class="sub"><td>layers above the null</td><td class="r hl">none</td><td class="r">L16–21</td></tr>
+      <tr class="sub"><td>cosine with v_img, late layers</td><td class="r">−0.06 – 0.00</td><td class="r">0.33 – 0.50</td></tr>
+      <tr class="sub"><td>gap share, max</td><td class="r">≈ 0 from L19</td><td class="r">0.28 (L20)</td></tr>
+      <tr><td>Refusal of unsafe images (HS / HH)</td><td class="r">0.00 / 0.13</td><td class="r">0.01 / 0.35</td></tr>
+    </table></div>
+
+    <div class="wide figblock">
+      <div class="toggle fig-toggle" data-target="vlsuFig">
+        <button data-src="llava-results/vlsu_probe/vlsu_auroc_vtextvlsu.png|qwen-results/vlsu_probe/vlsu_auroc_vtextvlsu.png" aria-pressed="true">in-format v_text_vlsu</button>
+        <button data-src="llava-results/vlsu_probe/vlsu_auroc.png|qwen-results/vlsu_probe/vlsu_auroc.png" aria-pressed="false">dataset2 v_text</button>
+        <button data-src="llava-results/vlsu_probe/probe_auroc.png|qwen-results/vlsu_probe/probe_auroc.png" aria-pressed="false">probe</button>
+      </div>
+      <div class="pair" id="vlsuFig">
+        <figure><div class="cap llava">LLaVA-1.5-7B</div><a class="plot" href="vlm-interp/llava-results/vlsu_probe/vlsu_auroc_vtextvlsu.png"><img loading="lazy" src="vlm-interp/llava-results/vlsu_probe/vlsu_auroc_vtextvlsu.png" alt="LLaVA-1.5-7B plot"></a></figure>
+        <figure><div class="cap qwen">Qwen2.5-VL-7B</div><a class="plot" href="vlm-interp/qwen-results/vlsu_probe/vlsu_auroc_vtextvlsu.png"><img loading="lazy" src="vlm-interp/qwen-results/vlsu_probe/vlsu_auroc_vtextvlsu.png" alt="Qwen2.5-VL-7B plot"></a></figure>
+      </div>
+    </div>
+    <ul class="list">
+      <li><b>Visual harm is encoded and reaches the final token</b> in both models (probe ≈ CLIP ≈ 0.95). Not an encoding failure.</li>
+      <li><span class="llava">LLaVA, decodable but not routed:</span> along the in-format text-harm direction, unsafe images don’t move. The projection never beats random directions and late-layer cosine is ≈ 0.</li>
+      <li><span class="qwen">Qwen, partly routed:</span> unsafe images move about a quarter of the way to harmful text at L16–21, the same depth where typographic images merge with text. So the convergence isn’t only OCR, but it is much weaker on photos (cos ≈ 0.5 vs 0.95).</li>
+    </ul>
+  </section>
+
+  <section id="limits">
+    <h2 class="label">Caveats &amp; next steps</h2>
+    <ul class="list">
+      <li><b>Harm vs topic.</b> On dataset2 a bag-of-words baseline matches the probe; harmful-sounding safe prompts (XSTest, OR-Bench-Hard) would separate the two.</li>
+      <li><b>Steering coverage.</b> Qwen only at α ∈ {1, 2}, two layers per model, greedy decoding. v_text_vlsu not yet tested causally.</li>
+      <li><b>Refusal scorer.</b> Substring matching counts “can’t read the image” and soft hedges as refusals and misses moralising compliance.</li>
+    </ul>
+    <ul class="todo" style="margin-top:14px">
+      <li>Qwen α=4, and layers 14–16 around the transition</li>
+      <li>LLM-judge refusal scorer</li>
+      <li>Behaviour-anchored threshold on VLSU</li>
+    </ul>
+    <div class="links" style="margin-top:22px">
+      <a href="https://github.com/Aurnawr/VLM-Interp">Code &amp; per-layer tables →</a>
+    </div>
+  </section>
+
+  <footer>
+    <span>© 2026 Arnav Bendre</span>
+    <a href="index.html#projects" style="text-decoration:none">← Back to projects</a>
+  </footer>
+</div>
+
+<script>
+  // ---- theme: shared with the rest of the site ----
+  (function () {
+    const root = document.documentElement, btn = document.getElementById('theme');
+    const sun = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>';
+    const moon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
+    const isDark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    const paint = () => { btn.innerHTML = isDark() ? sun : moon; btn.setAttribute('aria-label', isDark() ? 'Switch to light theme' : 'Switch to dark theme'); };
+    try { const s = localStorage.getItem('theme'); if (s) root.dataset.theme = s; } catch (e) {}
+    paint();
+    btn.addEventListener('click', () => {
+      root.dataset.theme = isDark() ? 'light' : 'dark';
+      try { localStorage.setItem('theme', root.dataset.theme); } catch (e) {}
+      paint(); window.dispatchEvent(new Event('themechange'));
+    });
+  })();
+
+  // ---- the mark ----
+  (function () {
+    const c = document.getElementById('mark'); if (!c) return;
+    const ctx = c.getContext('2d'), N = 5, S = 22, dpr = Math.max(1, devicePixelRatio || 1);
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    c.width = S * dpr; c.height = S * dpr; ctx.scale(dpr, dpr);
+    let eps = [], t0 = 0, raf = 0;
+    const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const color = () => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    function draw(sigma) {
+      ctx.clearRect(0, 0, S, S); ctx.fillStyle = color();
+      for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+        const k = i * N + j, step = S / N;
+        const x = (i + .5) * step + eps[k][0] * sigma * 5, y = (j + .5) * step + eps[k][1] * sigma * 5;
+        ctx.globalAlpha = .45 + .55 * (1 - sigma);
+        ctx.beginPath(); ctx.arc(Math.min(S - 1.5, Math.max(1.5, x)), Math.min(S - 1.5, Math.max(1.5, y)), 1.35, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    function sample() {
+      eps = Array.from({ length: N * N }, () => [gauss(), gauss()]);
+      if (reduce) return draw(0);
+      cancelAnimationFrame(raf); t0 = performance.now();
+      const tick = (now) => {
+        const p = Math.min(1, (now - t0) / 1500);
+        const steps = 12, q = Math.floor(p * steps) / steps;
+        draw(Math.pow(1 - q, 1.6));
+        if (p < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }
+    sample();
+    c.closest('a').addEventListener('mouseenter', sample);
+    window.addEventListener('themechange', () => draw(0));
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => draw(0));
+  })();
+
+  // ---- top bar border on scroll ----
+  (function () {
+    const top = document.querySelector('.top');
+    const on = () => top.classList.toggle('scrolled', scrollY > 8);
+    addEventListener('scroll', on, { passive: true }); on();
+  })();
+
+  // ---- entrance ----
+  (function () {
+    const els = document.querySelectorAll('.fade');
+    if (!('IntersectionObserver' in window)) return els.forEach(e => e.classList.add('in'));
+    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -6% 0px' });
+    els.forEach(e => io.observe(e));
+  })();
+
+  const FIG = 'vlm-interp/';
+
+  // ---- figure toggles: each button holds "llavaSrc|qwenSrc" ----
+  document.querySelectorAll('.fig-toggle').forEach(group => {
+    const figs = document.getElementById(group.dataset.target).querySelectorAll('figure');
+    group.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      group.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+      b.dataset.src.split('|').forEach((src, i) => {
+        const f = figs[i]; if (!f) return;
+        f.style.visibility = src ? '' : 'hidden';
+        if (src) { f.querySelector('img').src = FIG + src; f.querySelector('a').href = FIG + src; }
+      });
+    }));
+  });
+
+  // ---- PCA / t-SNE depth slider ----
+  (function () {
+    const L = [6, 13, 19, 26, 32], Q = [6, 11, 17, 22, 28], names = ['early', 'early-mid', 'middle', 'late', 'last'];
+    let proj = 'pca';
+    const s = document.getElementById('depth'), lbl = document.getElementById('depthLbl');
+    function upd() {
+      const i = +s.value;
+      const l = `${FIG}llava-results/${proj}_plots/${proj}_layer_${L[i]}.png`, q = `${FIG}qwen-results/${proj}_plots/${proj}_layer_${Q[i]}.png`;
+      document.getElementById('geoLimg').src = l; document.getElementById('geoL').href = l;
+      document.getElementById('geoQimg').src = q; document.getElementById('geoQ').href = q;
+      lbl.textContent = `${names[i]} · LLaVA L${L[i]} / Qwen L${Q[i]}`;
+    }
+    s.addEventListener('input', upd);
+    document.querySelectorAll('[data-proj]').forEach(b => b.addEventListener('click', () => {
+      proj = b.dataset.proj;
+      document.querySelectorAll('[data-proj]').forEach(x => x.setAttribute('aria-pressed', x === b));
+      upd();
+    }));
+    upd();
+  })();
+
+  // ---- cosine-by-depth chart ----
+  const DATA = {
+    llava: { n: 32, d: [[1,-0.282,-0.333,-0.215],[2,-0.076,-0.094,-0.054],[3,-0.02,-0.04,0.002],[4,-0.008,-0.031,0.017],[5,0.123,0.103,0.142],[6,0.131,0.115,0.146],[7,0.144,0.128,0.157],[8,0.119,0.104,0.131],[9,0.092,0.08,0.103],[10,0.131,0.12,0.139],[11,0.106,0.096,0.113],[12,0.143,0.132,0.151],[13,0.131,0.118,0.142],[14,0.128,0.109,0.145],[15,0.163,0.145,0.176],[16,0.234,0.217,0.247],[17,0.271,0.254,0.283],[18,0.293,0.278,0.303],[19,0.318,0.303,0.329],[20,0.322,0.307,0.333],[21,0.337,0.32,0.348],[22,0.341,0.325,0.352],[23,0.374,0.359,0.385],[24,0.373,0.358,0.384],[25,0.385,0.37,0.396],[26,0.378,0.363,0.389],[27,0.376,0.36,0.386],[28,0.363,0.348,0.374],[29,0.381,0.366,0.391],[30,0.381,0.366,0.391],[31,0.395,0.38,0.405],[32,0.449,0.433,0.462]] },
+    qwen:  { n: 28, d: [[1,0.226,0.2,0.249],[2,0.15,0.127,0.174],[3,0.334,0.308,0.358],[4,0.313,0.293,0.333],[5,0.394,0.372,0.414],[6,0.381,0.362,0.398],[7,0.385,0.37,0.398],[8,0.371,0.355,0.385],[9,0.356,0.342,0.368],[10,0.273,0.257,0.289],[11,0.285,0.265,0.304],[12,0.344,0.326,0.362],[13,0.426,0.411,0.44],[14,0.676,0.662,0.687],[15,0.73,0.718,0.739],[16,0.781,0.774,0.787],[17,0.801,0.795,0.806],[18,0.788,0.78,0.795],[19,0.861,0.855,0.866],[20,0.905,0.901,0.908],[21,0.928,0.925,0.931],[22,0.936,0.934,0.938],[23,0.941,0.939,0.942],[24,0.946,0.944,0.947],[25,0.952,0.95,0.953],[26,0.952,0.95,0.953],[27,0.95,0.948,0.951],[28,0.949,0.947,0.951]] }
+  };
+  let xMode = 'rel', W = 712, H = 320;
+  const M = { l: 40, r: 10, t: 10, b: 34 };
+  const svg = document.getElementById('cosChart'), tip = document.getElementById('tip');
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  function drawChart() {
+    const cw = svg.clientWidth || 712; W = cw < 560 ? Math.max(400, cw * 1.12) : 712; H = cw < 560 ? 300 : 320;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const xmax = xMode === 'rel' ? 1 : 32;
+    const X = v => M.l + (v / xmax) * (W - M.l - M.r), Y = v => M.t + (1 - (v + 0.4) / 1.45) * (H - M.t - M.b);
+    const xv = (m, l) => xMode === 'rel' ? l / DATA[m].n : l;
+    const line = css('--line'), faint = css('--faint');
+    let s = '';
+    for (let y = -0.4; y <= 1.001; y += 0.2) { const yy = Y(y); s += `<line x1="${M.l}" x2="${W - M.r}" y1="${yy}" y2="${yy}" stroke="${line}"/><text x="${M.l - 8}" y="${yy + 4}" text-anchor="end">${y.toFixed(1)}</text>`; }
+    const ticks = xMode === 'rel' ? [0, .25, .5, .75, 1] : (W < 560 ? [0, 8, 16, 24, 32] : [0, 4, 8, 12, 16, 20, 24, 28, 32]);
+    ticks.forEach(t => { s += `<text x="${X(t)}" y="${H - M.b + 17}" text-anchor="middle">${t}</text>`; });
+    s += `<text x="${(W + M.l) / 2}" y="${H - 2}" text-anchor="middle">${xMode === 'rel' ? 'relative depth (layer / #layers)' : 'layer'}</text>`;
+    s += `<line x1="${M.l}" x2="${W - M.r}" y1="${Y(0.99)}" y2="${Y(0.99)}" stroke="${faint}" stroke-dasharray="5 4"/>`;
+    s += `<line x1="${M.l}" x2="${W - M.r}" y1="${Y(0.033)}" y2="${Y(0.033)}" stroke="${faint}" stroke-dasharray="2 4"/>`;
+    s += `<line x1="${M.l}" x2="${W - M.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="${faint}" stroke-opacity=".5"/>`;
+    ['llava', 'qwen'].forEach(m => {
+      const c = css('--' + m), d = DATA[m].d;
+      const band = d.map(p => `${X(xv(m, p[0]))},${Y(p[3])}`).join(' ') + ' ' + d.slice().reverse().map(p => `${X(xv(m, p[0]))},${Y(p[2])}`).join(' ');
+      s += `<polygon points="${band}" fill="${c}" opacity=".18"/>`;
+      s += `<polyline points="${d.map(p => `${X(xv(m, p[0]))},${Y(p[1])}`).join(' ')}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round"/>`;
+      d.forEach(p => { s += `<circle cx="${X(xv(m, p[0]))}" cy="${Y(p[1])}" r="2.2" fill="${c}"/>`; });
+    });
+    s += `<text x="${X(xv('qwen', 13.4)) - 8}" y="${Y(0.62)}" text-anchor="end" style="fill:${css('--qwen')}">L13 → L14 jump</text>`;
+    s += `<line id="hov" y1="${M.t}" y2="${H - M.b}" stroke="${faint}" opacity="0"/>`;
+    s += `<rect id="hit" x="${M.l}" y="${M.t}" width="${W - M.l - M.r}" height="${H - M.t - M.b}" fill="transparent"/>`;
+    svg.innerHTML = s;
+    const hit = svg.querySelector('#hit'), hov = svg.querySelector('#hov');
+    const show = (cx, cy) => {
+      const pt = svg.createSVGPoint(); pt.x = cx; pt.y = cy;
+      const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+      const v = (p.x - M.l) / (W - M.l - M.r) * xmax;
+      const near = m => DATA[m].d.reduce((a, b) => Math.abs(xv(m, b[0]) - v) < Math.abs(xv(m, a[0]) - v) ? b : a);
+      const a = near('llava'), b = near('qwen');
+      hov.setAttribute('x1', p.x); hov.setAttribute('x2', p.x); hov.setAttribute('opacity', 1);
+      const row = (cls, name, r) => `<div><span class="${cls}">${name} L${r[0]}</span> ${r[1].toFixed(3)} <span style="color:var(--faint)">[${r[2].toFixed(2)}, ${r[3].toFixed(2)}]</span></div>`;
+      tip.innerHTML = row('llava', 'LLaVA', a) + (xMode === 'abs' && v > 28.5 ? '' : row('qwen', 'Qwen', b));
+      const box = svg.parentElement.getBoundingClientRect();
+      let left = cx - box.left + 14; if (left > box.width - 230) left -= 250;
+      tip.style.left = Math.max(0, left) + 'px'; tip.style.top = (cy - box.top - 12) + 'px'; tip.style.opacity = 1;
+    };
+    hit.addEventListener('mousemove', e => show(e.clientX, e.clientY));
+    hit.addEventListener('touchmove', e => { show(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+    hit.addEventListener('mouseleave', () => { tip.style.opacity = 0; hov.setAttribute('opacity', 0); });
+  }
+  document.querySelectorAll('[data-x]').forEach(b => b.addEventListener('click', () => {
+    xMode = b.dataset.x; document.querySelectorAll('[data-x]').forEach(x => x.setAttribute('aria-pressed', x === b)); drawChart();
+  }));
+  window.addEventListener('themechange', drawChart);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawChart);
+  let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(drawChart, 150); });
+  drawChart();
+</script>
+</body>
+</html>
